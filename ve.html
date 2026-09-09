@@ -84,19 +84,120 @@
             font-weight: 600;
         }
 
-        /* Рабочая область плеера */
+        /* Главный макет рабочей области (Слева панель, справа контент) */
         .editor-workspace {
             display: none;
-            flex-direction: column;
-            align-items: center;
+            flex-direction: row;
             gap: 16px;
-            width: 80%;
-            max-width: 960px;
+            width: 92%;
+            max-width: 1100px;
+            height: 600px;
+        }
+
+        /* Левая боковая панель */
+        .sidebar {
+            width: 220px;
+            background-color: #14161b;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-sizing: border-box;
+        }
+
+        .sidebar-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        .speed-control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .speed-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+
+        .btn-speed {
+            background-color: #262a33;
+            color: #e2e8f0;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            padding: 8px 0;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+        }
+
+        .btn-speed:hover {
+            background-color: #313642;
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-speed.active {
+            background-color: #3b82f6;
+            border-color: #3b82f6;
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .speed-slider-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #1a1d24;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .speed-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 110px;
+            height: 4px;
+            background: #262a33;
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .speed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+
+        .speed-value-display {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #3b82f6;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Правая колонка с плеером */
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
 
         video {
             width: 100%;
-            max-height: 500px;
+            max-height: 440px;
             background-color: #000000;
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -196,7 +297,6 @@
             transition: border-color 0.2s, box-shadow 0.2s;
         }
 
-        /* Состояние активного таймлайна с белой обводкой (по ЛКМ) */
         .timeline-container.active {
             border-color: #ffffff;
             box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
@@ -235,7 +335,7 @@
             height: 100%;
             opacity: 0;
             cursor: pointer;
-            pointer-events: none; /* Отключаем стандартные клики range-инпута */
+            pointer-events: none;
         }
 
         #fileInput {
@@ -260,29 +360,51 @@
         </div>
     </div>
 
-    <!-- Рабочая область плеера -->
+    <!-- Рабочая область плеера с боковой панелью -->
     <div class="editor-workspace" id="editorWorkspace">
-        <video id="videoPlayer" controlslist="nodownload noplaybackrate" disablepictureinpicture></video>
-        <div class="player-controls">
-            <div class="controls-top">
-                <div class="controls-left">
-                    <button class="btn-control" id="playPauseBtn">▶</button>
-                    <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
+        
+        <!-- Левая боковая панель -->
+        <div class="sidebar">
+            <div class="speed-control-group">
+                <div class="sidebar-title">Playback Speed</div>
+                <div class="speed-buttons">
+                    <button class="btn-speed" data-speed="0.5">0.5x</button>
+                    <button class="btn-speed active" data-speed="1">1.0x</button>
+                    <button class="btn-speed" data-speed="1.5">1.5x</button>
+                    <button class="btn-speed" data-speed="2">2.0x</button>
                 </div>
-                <div class="controls-right">
-                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
-                </div>
-            </div>
-            
-            <!-- Таймлайн -->
-            <div class="timeline-wrapper">
-                <div class="timeline-container" id="timelineContainer">
-                    <div class="timeline-strip" id="timelineStrip"></div>
-                    <div class="timeline-progress-overlay" id="timelineProgressOverlay"></div>
-                    <input type="range" class="timeline-range-input" id="seekBar" value="0" min="0" max="100" step="0.1">
+                <div class="speed-slider-container">
+                    <input type="range" class="speed-slider" id="speedSlider" min="0.25" max="3" step="0.05" value="1">
+                    <span class="speed-value-display" id="speedValueDisplay">1.00x</span>
                 </div>
             </div>
         </div>
+
+        <!-- Правый контент (плеер + элементы управления) -->
+        <div class="main-content">
+            <video id="videoPlayer" controlslist="nodownload noplaybackrate" disablepictureinpicture></video>
+            <div class="player-controls">
+                <div class="controls-top">
+                    <div class="controls-left">
+                        <button class="btn-control" id="playPauseBtn">▶</button>
+                        <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
+                    </div>
+                    <div class="controls-right">
+                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
+                    </div>
+                </div>
+                
+                <!-- Таймлайн -->
+                <div class="timeline-wrapper">
+                    <div class="timeline-container" id="timelineContainer">
+                        <div class="timeline-strip" id="timelineStrip"></div>
+                        <div class="timeline-progress-overlay" id="timelineProgressOverlay"></div>
+                        <input type="range" class="timeline-range-input" id="seekBar" value="0" min="0" max="100" step="0.1">
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <input type="file" id="fileInput" accept="video/*">
@@ -308,11 +430,15 @@
         const timelineContainer = document.getElementById('timelineContainer');
         const volumeSlider = document.getElementById('volumeSlider');
 
+        // Элементы управления скоростью
+        const speedButtons = document.querySelectorAll('.btn-speed');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValueDisplay = document.getElementById('speedValueDisplay');
+
         let videoFile = null;
         let videoDuration = 0;
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
-        // Отключаем стандартное контекстное меню браузера по ПКМ на таймлайне
         timelineContainer.addEventListener('contextmenu', (e) => e.preventDefault());
 
         dropZone.addEventListener('click', () => {
@@ -408,21 +534,56 @@
             playPauseBtn.textContent = '▶';
         });
 
-        // ЛКМ (кнопка 0) — выбирает клип (появляется белая обводка)
+        // Управление скоростью
+        function setPlaybackSpeed(speed) {
+            videoPlayer.playbackRate = speed;
+            speedSlider.value = speed;
+            speedValueDisplay.textContent = Number(speed).toFixed(2) + 'x';
+
+            speedButtons.forEach(btn => {
+                if (parseFloat(btn.getAttribute('data-speed')) === parseFloat(speed)) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        speedButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const speed = parseFloat(btn.getAttribute('data-speed'));
+                setPlaybackSpeed(speed);
+            });
+        });
+
+        speedSlider.addEventListener('input', () => {
+            const speed = parseFloat(speedSlider.value);
+            videoPlayer.playbackRate = speed;
+            speedValueDisplay.textContent = speed.toFixed(2) + 'x';
+
+            speedButtons.forEach(btn => {
+                if (parseFloat(btn.getAttribute('data-speed')) === speed) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        });
+
+        // ЛКМ (кнопка 0) — выбор клипа (белая рамка)
         timelineContainer.addEventListener('mousedown', (e) => {
             if (e.button === 0) {
                 timelineContainer.classList.add('active');
             }
         });
 
-        // Убираем обводку при клике ЛКМ в любое другое место страницы
         document.addEventListener('mousedown', (e) => {
             if (e.button === 0 && !timelineContainer.contains(e.target)) {
                 timelineContainer.classList.remove('active');
             }
         });
 
-        // ПКМ (кнопка 2) — выбирает момент (перематывает видео) и активирует таймлайн
+        // ПКМ (кнопка 2) — выбор момента (перемотка)
         timelineContainer.addEventListener('mousedown', (e) => {
             if (e.button === 2) {
                 if (videoDuration === 0) return;
