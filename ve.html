@@ -295,15 +295,13 @@
                     <div class="timeline-progress-overlay" id="timelineProgressOverlay"></div>
                     <input type="range" class="timeline-range-input" id="seekBar" value="0" min="0" max="100" step="0.1">
                 </div>
-                <button class="btn-add-media" id="addMediaBtn" title="Add video or photo">+</button>
+                <button class="btn-add-media" id="addMediaBtn" title="Add video">+</button>
             </div>
         </div>
     </div>
 
     <input type="file" id="fileInput" accept="video/*">
-    <input type="file" id="addMediaInput" accept="video/*,image/*" multiple>
-
-    <!-- Скрытый элемент для предварительного чтения метаданных новых файлов -->
+    <input type="file" id="addMediaInput" accept="video/*" multiple>
     <video id="metaVideo" style="display:none;"></video>
 
     <script>
@@ -328,7 +326,8 @@
         const volumeSlider = document.getElementById('volumeSlider');
 
         let playlist = []; // Массив объектов файлов
-        let currentPlaylistIndex = 0;
+        let videoDurations = []; // Длительности каждого видео
+        let totalDuration = 0; // Суммарная длительность всего проекта
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -344,7 +343,6 @@
             }
         });
 
-        // Кнопка "+" для добавления новых файлов
         addMediaBtn.addEventListener('click', () => {
             addMediaInput.click();
         });
@@ -354,8 +352,7 @@
                 for (let file of e.target.files) {
                     playlist.push(file);
                 }
-                // Перезапускаем генерацию таймлайна и обновление плеера
-                await updateWorkspaceAndFilmstrip();
+                await initProjectMetadata();
             }
         });
 
@@ -394,8 +391,7 @@
                     setTimeout(async () => {
                         dropZone.style.display = 'none';
                         playlist = [file];
-                        currentPlaylistIndex = 0;
-                        await updateWorkspaceAndFilmstrip();
+                        await initProjectMetadata();
                         editorWorkspace.style.display = 'flex';
                     }, 300);
                 }
@@ -409,33 +405,102 @@
             }, 30);
         }
 
-        async function updateWorkspaceAndFilmstrip() {
-            if (playlist.length === 0) return;
-            
-            // Загружаем текущий элемент в основной плеер
-            loadVideoSource(currentPlaylistIndex);
-            
-            // Перестраиваем общую полосу кадров для всех файлов плейлиста
+        // Вычисляем длительности всех файлов и общую длительность «склеенного» видео
+        async function initProjectMetadata() {
+            videoDurations = [];
+            totalDuration = 0;
+
+            for (let file of playlist) {
+                const url = URL.createObjectURL(file);
+                metaVideo.src = url;
+                await new Promise(resolve => {
+                    metaVideo.onloadedmetadata = () => resolve();
+                });
+                videoDurations.push(metaVideo.duration);
+                totalDuration += metaVideo.duration;
+            }
+
+            // Загружаем первое видео и ставим его на паузу в начале
+            videoPlayer.src = URL.createObjectURL(playlist[0]);
+            videoPlayer.currentTime = 0;
+
             await generateFullFilmstrip();
         }
 
-        function loadVideoSource(index) {
-            if (index >= playlist.length) return;
-            const file = playlist[index];
-            const videoUrl = URL.createObjectURL(file);
-            videoPlayer.src = videoUrl;
+        // Получить индекс текущего видео и локальное время в нем по общей шкале времени проекта
+        function getActiveVideoInfo(globalTime) {
+            let accumulatedTime = 0;
+            for (let i = 0; i < playlist.length; i++) {
+                if (globalTime <= accumulatedTime + videoDurations[i] || i === playlist.length - 1) {
+                    let localTime = globalTime - accumulatedTime;
+                    // Защита от выхода за границы
+                    if (localTime < 0) localTime = 0;
+                    if (localTime > videoDurations[i]) localTime = videoDurations[i];
+                    return { index: i, localTime: localTime };
+                }
+                accumulatedTime += videoDurations[i];
+            }
+            return { index: 0, localTime: 0 };
         }
 
-        // Автоматическое переключение на следующее видео по окончании текущего
+        let isChangingTime = false;
+
+        // Отслеживаем воспроизведение и плавно переключаем куски видео
+        videoPlayer.addEventListener('timeupdate', () => {
+            if (isChangingTime || totalDuration === 0) return;
+
+            // Вычисляем текущее глобальное время проекта
+            let accumulatedTime = 0;
+            for (let i = 0; i < currentPlayingIndex; i++) {
+                accumulatedTime += videoDurations[i];
+            }
+            const globalCurrent = accumulatedTime + videoPlayer.currentTime;
+            const percent = (globalCurrent / totalDuration) * 100;
+
+            seekBar.value = percent;
+            timelineProgressOverlay.style.width = `${percent}%`;
+            timeDisplay.textContent = `${formatTime(globalCurrent)} / ${formatTime(totalDuration)}`;
+        });
+
+        let currentPlayingIndex = 0;
+
+        // Обработка окончания текущего фрагмента видео — бесшовно переходим к следующему
         videoPlayer.addEventListener('ended', () => {
-            currentPlaylistIndex++;
-            if (currentPlaylistIndex < playlist.length) {
-                loadVideoSource(currentPlaylistIndex);
+            currentPlayingIndex++;
+            if (currentPlayingIndex < playlist.length) {
+                videoPlayer.src = URL.createObjectURL(playlist[currentPlayingIndex]);
+                videoPlayer.currentTime = 0;
                 videoPlayer.play();
             } else {
-                currentPlaylistIndex = 0; // Возврат в начало
-                loadVideoSource(currentPlaylistIndex);
+                currentPlayingIndex = 0;
+                videoPlayer.src = URL.createObjectURL(playlist[0]);
+                videoPlayer.currentTime = 0;
+                playPauseBtn.textContent = '▶';
             }
+        });
+
+        // Перемотка по общему таймлайну (работает как в едином видео)
+        seekBar.addEventListener('input', () => {
+            if (totalDuration === 0) return;
+            isChangingTime = true;
+
+            const globalTargetTime = (seekBar.value / 100) * totalDuration;
+            const info = getActiveVideoInfo(globalTargetTime);
+
+            timelineProgressOverlay.style.width = `${seekBar.value}%`;
+            timeDisplay.textContent = `${formatTime(globalTargetTime)} / ${formatTime(totalDuration)}`;
+
+            if (info.index !== currentPlayingIndex) {
+                currentPlayingIndex = info.index;
+                videoPlayer.src = URL.createObjectURL(playlist[currentPlayingIndex]);
+                videoPlayer.currentTime = info.localTime;
+            } else {
+                videoPlayer.currentTime = info.localTime;
+            }
+        });
+
+        seekBar.addEventListener('change', () => {
+            isChangingTime = false;
         });
 
         function formatTime(seconds) {
@@ -444,43 +509,42 @@
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
-        // Генерация кадров для всех видео в плейлисте
+        // Генерация кадров для ленты таймлайна
         async function generateFullFilmstrip() {
             timelineStrip.innerHTML = '';
-            const framesPerVideo = 10; // Кадров на каждое видео
+            const framesPerVideo = 10;
 
-            for (let file of playlist) {
-                if (file.type.startsWith('video/')) {
-                    const url = URL.createObjectURL(file);
-                    metaVideo.src = url;
+            for (let i = 0; i < playlist.length; i++) {
+                const url = URL.createObjectURL(playlist[i]);
+                metaVideo.src = url;
+                
+                await new Promise(resolve => {
+                    metaVideo.onloadedmetadata = () => resolve();
+                });
+
+                const duration = videoDurations[i] || 1;
+
+                for (let j = 0; j < framesPerVideo; j++) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 80;
+                    canvas.height = 60;
+                    const ctx = canvas.getContext('2d');
+                    
+                    metaVideo.currentTime = (duration / framesPerVideo) * j;
                     
                     await new Promise(resolve => {
-                        metaVideo.onloadedmetadata = () => resolve();
+                        const seekHandler = () => {
+                            metaVideo.removeEventListener('seeked', seekHandler);
+                            ctx.drawImage(metaVideo, 0, 0, canvas.width, canvas.height);
+                            resolve();
+                        };
+                        metaVideo.addEventListener('seeked', seekHandler);
                     });
-
-                    const duration = metaVideo.duration || 1;
-
-                    for (let i = 0; i < framesPerVideo; i++) {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = 80;
-                        canvas.height = 60;
-                        const ctx = canvas.getContext('2d');
-                        
-                        metaVideo.currentTime = (duration / framesPerVideo) * i;
-                        
-                        await new Promise(resolve => {
-                            const seekHandler = () => {
-                                metaVideo.removeEventListener('seeked', seekHandler);
-                                ctx.drawImage(metaVideo, 0, 0, canvas.width, canvas.height);
-                                resolve();
-                            };
-                            metaVideo.addEventListener('seeked', seekHandler);
-                        });
-                        
-                        timelineStrip.appendChild(canvas);
-                    }
+                    
+                    timelineStrip.appendChild(canvas);
                 }
             }
+            metaVideo.src = '';
         }
 
         playPauseBtn.addEventListener('click', () => {
@@ -493,28 +557,8 @@
             }
         });
 
-        videoPlayer.addEventListener('pause', () => { playPauseBtn.textContent = '▶'; });
+        videoPlayer.addEventListener('pause', () => { if(!isChangingTime) playPauseBtn.textContent = '▶'; });
         videoPlayer.addEventListener('play', () => { playPauseBtn.textContent = '❚❚'; });
-
-        videoPlayer.addEventListener('timeupdate', () => {
-            if (!isNaN(videoPlayer.duration)) {
-                const current = videoPlayer.currentTime;
-                const duration = videoPlayer.duration;
-                const percent = (current / duration) * 100;
-                
-                seekBar.value = percent;
-                timelineProgressOverlay.style.width = `${percent}%`;
-                timeDisplay.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
-            }
-        });
-
-        seekBar.addEventListener('input', () => {
-            if (!isNaN(videoPlayer.duration)) {
-                const time = (seekBar.value / 100) * videoPlayer.duration;
-                videoPlayer.currentTime = time;
-                timelineProgressOverlay.style.width = `${seekBar.value}%`;
-            }
-        });
 
         volumeSlider.addEventListener('input', () => {
             videoPlayer.volume = volumeSlider.value;
