@@ -27,7 +27,6 @@
             z-index: 10;
         }
 
-        /* Состояние скрытого сайдбара: уменьшаем ширину до размера кнопки */
         .sidebar.collapsed {
             width: 70px;
             padding: 20px 10px;
@@ -40,7 +39,6 @@
             margin-bottom: 25px;
         }
 
-        /* Единая кнопка скрыть/раскрыть */
         .toggle-btn {
             background: none;
             border: none;
@@ -60,7 +58,6 @@
             background-color: rgba(255, 255, 255, 0.05);
         }
 
-        /* Кнопка Create в темно-сером оформлении */
         .btn-create {
             background-color: #262a33;
             color: #e2e8f0;
@@ -86,8 +83,7 @@
             border-color: rgba(255, 255, 255, 0.15);
         }
 
-        /* Скрываем текст "Create", оставляем только плюсик, когда сайдбар свернут */
-        .sidebar.collapsed .btn-create span {
+        .sidebar.collapsed .btn-create span.text {
             display: none;
         }
 
@@ -99,33 +95,160 @@
         .main-area {
             flex-grow: 1;
         }
+
+        /* Модальное окно */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 100;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal {
+            background-color: #14161b;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 30px;
+            width: 380px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            color: #e2e8f0;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .modal-close:hover {
+            color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .option-item {
+            background-color: #262a33;
+            color: #e2e8f0;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 14px 16px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: left;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .option-item:hover {
+            background-color: #313642;
+            border-color: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+        }
     </style>
 </head>
 <body>
 
     <div class="sidebar" id="sidebar">
         <div class="sidebar-top">
-            <!-- Единая кнопка для скрытия и раскрытия -->
             <button class="toggle-btn" id="toggleSidebar" title="Toggle Sidebar">☰</button>
         </div>
         
-        <a href="#" class="btn-create">
+        <button class="btn-create" id="openModal">
             <span class="icon">+</span>
-            <span>Create</span>
-        </a>
+            <span class="text">Create</span>
+        </button>
     </div>
 
     <div class="main-area"></div>
 
+    <!-- Модальное окно выбора типа проекта -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Create new project</h3>
+                <button class="modal-close" id="closeModal">✕</button>
+            </div>
+            <div class="options-list">
+                <button class="option-item" onclick="selectOption('Video')">Video</button>
+                <button class="option-item" onclick="selectOption('Photo')">Photo</button>
+                <button class="option-item" onclick="selectOption('Presentation')">Presentation</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const sidebar = document.getElementById('sidebar');
         const toggleBtn = document.getElementById('toggleSidebar');
+        const openModalBtn = document.getElementById('openModal');
+        const closeModalBtn = document.getElementById('closeModal');
+        const modalOverlay = document.getElementById('modalOverlay');
 
+        // Сворачивание/раскрытие сайдбара
         toggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
         });
 
-        console.log("Editor script active.");
+        // Открытие модального окна
+        openModalBtn.addEventListener('click', () => {
+            modalOverlay.classList.add('active');
+        });
+
+        // Закрытие модального окна кнопкой крестика
+        closeModalBtn.addEventListener('click', () => {
+            modalOverlay.classList.remove('active');
+        });
+
+        // Закрытие модального окна при клике на темный фон снаружи
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) {
+                modalOverlay.classList.remove('active');
+            }
+        });
+
+        // Функция обработки выбора пункта
+        function selectOption(type) {
+            console.log("Selected:", type);
+            modalOverlay.classList.remove('active');
+            // Здесь можно добавить логику перехода или инициализации проекта
+        }
     </script>
 </body>
 </html>
