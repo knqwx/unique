@@ -16,14 +16,22 @@
             align-items: center;
         }
 
+        /* Область перетаскивания (сделали заметно больше) */
         .upload-container {
             border: 2px dashed rgba(255, 255, 255, 0.12);
-            border-radius: 12px;
-            padding: 40px 60px;
+            border-radius: 16px;
+            width: 550px;
+            height: 320px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             text-align: center;
             background-color: #14161b;
             cursor: pointer;
             transition: border-color 0.2s, background-color 0.2s;
+            box-sizing: border-box;
+            padding: 20px;
         }
 
         .upload-container:hover {
@@ -32,13 +40,51 @@
         }
 
         .upload-text {
-            font-size: 1.1rem;
+            font-size: 1.25rem;
             color: #94a3b8;
             margin: 0;
             font-weight: 500;
         }
 
-        /* Скрываем стандартный инпут выбора файла */
+        /* Секция загрузки (скрыта по умолчанию) */
+        .progress-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .file-size-text {
+            font-size: 1rem;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        /* Линия прогресса */
+        .progress-bar-bg {
+            width: 100%;
+            height: 6px;
+            background-color: #262a33;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: #3b82f6;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .progress-percent {
+            font-size: 0.9rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+
         #fileInput {
             display: none;
         }
@@ -47,28 +93,45 @@
 <body>
 
     <div class="upload-container" id="dropZone">
-        <p class="upload-text">Drag or choose files</p>
+        <!-- Начальный вид -->
+        <div id="initialContent">
+            <p class="upload-text">Drag or choose files</p>
+        </div>
+
+        <!-- Вид во время загрузки -->
+        <div class="progress-container" id="progressContainer">
+            <div class="file-size-text" id="fileSizeText">0 MB / 0 MB</div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressBarFill"></div>
+            </div>
+            <div class="progress-percent" id="progressPercent">0%</div>
+        </div>
+
         <input type="file" id="fileInput" multiple>
     </div>
 
     <script>
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
+        const initialContent = document.getElementById('initialContent');
+        const progressContainer = document.getElementById('progressContainer');
+        const fileSizeText = document.getElementById('fileSizeText');
+        const progressBarFill = document.getElementById('progressBarFill');
+        const progressPercent = document.getElementById('progressPercent');
 
-        // Клик по блоку вызывает выбор файла
         dropZone.addEventListener('click', () => {
-            fileInput.click();
-        });
-
-        // Обработка выбора файлов через диалоговое окно
-        fileInput.addEventListener('change', (e) => {
-            const files = e.target.files;
-            if (files.length > 0) {
-                console.log("Selected files:", files);
+            // Открываем выбор файла только если загрузка еще не идет
+            if (progressContainer.style.display !== 'flex') {
+                fileInput.click();
             }
         });
 
-        // Поддержка Drag and Drop
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.style.borderColor = '#3b82f6';
@@ -81,13 +144,39 @@
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                console.log("Dropped files:", files);
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
             }
         });
 
-        console.log("Video editor workspace loaded.");
+        // Функция имитации и отображения прогресса загрузки файла
+        function handleFile(file) {
+            initialContent.style.display = 'none';
+            progressContainer.style.display = 'flex';
+
+            const totalBytes = file.size;
+            const totalMb = (totalBytes / (1024 * 1024)).toFixed(1);
+            
+            let loadedBytes = 0;
+            // Симулируем скорость загрузки для наглядности
+            const increment = totalBytes / 50; 
+
+            const interval = setInterval(() => {
+                loadedBytes += increment;
+                if (loadedBytes >= totalBytes) {
+                    loadedBytes = totalBytes;
+                    clearInterval(interval);
+                    console.log("File loaded successfully:", file.name);
+                }
+
+                const loadedMb = (loadedBytes / (1024 * 1024)).toFixed(1);
+                const percent = Math.round((loadedBytes / totalBytes) * 100);
+
+                fileSizeText.textContent = `${loadedMb} MB / ${totalMb} MB`;
+                progressBarFill.style.width = `${percent}%`;
+                progressPercent.textContent = `${percent}%`;
+            }, 40);
+        }
     </script>
 </body>
 </html>
