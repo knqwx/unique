@@ -177,7 +177,7 @@
             cursor: pointer;
         }
 
-        /* Строка с таймлайном и кнопкой добавления */
+        /* Строка с таймлайном */
         .timeline-wrapper {
             display: flex;
             align-items: center;
@@ -193,6 +193,13 @@
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        /* Состояние активного таймлайна с белой обводкой */
+        .timeline-container.active {
+            border-color: #ffffff;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
         }
 
         .timeline-strip {
@@ -202,38 +209,11 @@
             cursor: pointer;
         }
 
-        .timeline-group {
-            display: flex;
-            height: 100%;
-            /* Каждая группа видео занимает пропорциональное место по длительности */
-        }
-
         .timeline-strip canvas {
             height: 100%;
             flex: 1;
             object-fit: cover;
             border-right: 1px solid rgba(0, 0, 0, 0.3);
-        }
-
-        /* Стиль для разделителя между видео с укороченной черной линией */
-        .video-separator {
-            width: 8px;
-            background-color: #ffffff;
-            border-radius: 4px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-shrink: 0;
-            margin: 0 2px;
-            height: 100%;
-        }
-
-        .video-separator::after {
-            content: '';
-            width: 2px;
-            height: 40%; /* Черная линия короче (занимает 40% высоты вместо 100%) */
-            background-color: #000000;
-            border-radius: 1px;
         }
 
         .timeline-progress-overlay {
@@ -257,29 +237,7 @@
             cursor: pointer;
         }
 
-        .btn-add-media {
-            width: 45px;
-            height: 50px;
-            background-color: #262a33;
-            color: #e2e8f0;
-            font-size: 1.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: background-color 0.2s, border-color 0.2s;
-            flex-shrink: 0;
-        }
-
-        .btn-add-media:hover {
-            background-color: #313642;
-            border-color: rgba(255, 255, 255, 0.15);
-            color: #ffffff;
-        }
-
-        #fileInput, #addMediaInput {
+        #fileInput {
             display: none;
         }
     </style>
@@ -315,27 +273,23 @@
                 </div>
             </div>
             
-            <!-- Таймлайн и кнопка добавления -->
+            <!-- Таймлайн -->
             <div class="timeline-wrapper">
                 <div class="timeline-container" id="timelineContainer">
                     <div class="timeline-strip" id="timelineStrip"></div>
                     <div class="timeline-progress-overlay" id="timelineProgressOverlay"></div>
                     <input type="range" class="timeline-range-input" id="seekBar" value="0" min="0" max="100" step="0.1">
                 </div>
-                <button class="btn-add-media" id="addMediaBtn" title="Add video">+</button>
             </div>
         </div>
     </div>
 
     <input type="file" id="fileInput" accept="video/*">
-    <input type="file" id="addMediaInput" accept="video/*" multiple>
     <video id="metaVideo" style="display:none;"></video>
 
     <script>
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
-        const addMediaInput = document.getElementById('addMediaInput');
-        const addMediaBtn = document.getElementById('addMediaBtn');
         const initialContent = document.getElementById('initialContent');
         const progressContainer = document.getElementById('progressContainer');
         const fileSizeText = document.getElementById('fileSizeText');
@@ -350,11 +304,11 @@
         const timeDisplay = document.getElementById('timeDisplay');
         const timelineStrip = document.getElementById('timelineStrip');
         const timelineProgressOverlay = document.getElementById('timelineProgressOverlay');
+        const timelineContainer = document.getElementById('timelineContainer');
         const volumeSlider = document.getElementById('volumeSlider');
 
-        let playlist = []; 
-        let videoDurations = []; 
-        let totalDuration = 0; 
+        let videoFile = null;
+        let videoDuration = 0;
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -367,19 +321,6 @@
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
                 handleInitialFile(e.target.files[0]);
-            }
-        });
-
-        addMediaBtn.addEventListener('click', () => {
-            addMediaInput.click();
-        });
-
-        addMediaInput.addEventListener('change', async (e) => {
-            if (e.target.files.length > 0) {
-                for (let file of e.target.files) {
-                    playlist.push(file);
-                }
-                await initProjectMetadata();
             }
         });
 
@@ -417,7 +358,7 @@
                     
                     setTimeout(async () => {
                         dropZone.style.display = 'none';
-                        playlist = [file];
+                        videoFile = file;
                         await initProjectMetadata();
                         editorWorkspace.style.display = 'flex';
                     }, 300);
@@ -433,89 +374,58 @@
         }
 
         async function initProjectMetadata() {
-            videoDurations = [];
-            totalDuration = 0;
+            const url = URL.createObjectURL(videoFile);
+            metaVideo.src = url;
+            await new Promise(resolve => {
+                metaVideo.onloadedmetadata = () => resolve();
+            });
+            videoDuration = metaVideo.duration;
 
-            for (let file of playlist) {
-                const url = URL.createObjectURL(file);
-                metaVideo.src = url;
-                await new Promise(resolve => {
-                    metaVideo.onloadedmetadata = () => resolve();
-                });
-                videoDurations.push(metaVideo.duration);
-                totalDuration += metaVideo.duration;
-            }
-
-            videoPlayer.src = URL.createObjectURL(playlist[0]);
+            videoPlayer.src = url;
             videoPlayer.currentTime = 0;
 
-            await generateFullFilmstrip();
-        }
-
-        function getActiveVideoInfo(globalTime) {
-            let accumulatedTime = 0;
-            for (let i = 0; i < playlist.length; i++) {
-                if (globalTime <= accumulatedTime + videoDurations[i] || i === playlist.length - 1) {
-                    let localTime = globalTime - accumulatedTime;
-                    if (localTime < 0) localTime = 0;
-                    if (localTime > videoDurations[i]) localTime = videoDurations[i];
-                    return { index: i, localTime: localTime };
-                }
-                accumulatedTime += videoDurations[i];
-            }
-            return { index: 0, localTime: 0 };
+            await generateFilmstrip();
         }
 
         let isChangingTime = false;
 
         videoPlayer.addEventListener('timeupdate', () => {
-            if (isChangingTime || totalDuration === 0) return;
+            if (isChangingTime || videoDuration === 0) return;
 
-            let accumulatedTime = 0;
-            for (let i = 0; i < currentPlayingIndex; i++) {
-                accumulatedTime += videoDurations[i];
-            }
-            const globalCurrent = accumulatedTime + videoPlayer.currentTime;
-            const percent = (globalCurrent / totalDuration) * 100;
+            const current = videoPlayer.currentTime;
+            const percent = (current / videoDuration) * 100;
 
             seekBar.value = percent;
             timelineProgressOverlay.style.width = `${percent}%`;
-            timeDisplay.textContent = `${formatTime(globalCurrent)} / ${formatTime(totalDuration)}`;
+            timeDisplay.textContent = `${formatTime(current)} / ${formatTime(videoDuration)}`;
         });
 
-        let currentPlayingIndex = 0;
-
         videoPlayer.addEventListener('ended', () => {
-            currentPlayingIndex++;
-            if (currentPlayingIndex < playlist.length) {
-                videoPlayer.src = URL.createObjectURL(playlist[currentPlayingIndex]);
-                videoPlayer.currentTime = 0;
-                videoPlayer.play();
-            } else {
-                currentPlayingIndex = 0;
-                videoPlayer.src = URL.createObjectURL(playlist[0]);
-                videoPlayer.currentTime = 0;
-                playPauseBtn.textContent = '▶';
+            videoPlayer.currentTime = 0;
+            playPauseBtn.textContent = '▶';
+        });
+
+        // Добавление белой обводки при клике на таймлайн
+        seekBar.addEventListener('mousedown', () => {
+            timelineContainer.classList.add('active');
+        });
+
+        // Убираем обводку при клике в любое другое место страницы
+        document.addEventListener('click', (e) => {
+            if (!timelineContainer.contains(e.target)) {
+                timelineContainer.classList.remove('active');
             }
         });
 
         seekBar.addEventListener('input', () => {
-            if (totalDuration === 0) return;
+            if (videoDuration === 0) return;
             isChangingTime = true;
 
-            const globalTargetTime = (seekBar.value / 100) * totalDuration;
-            const info = getActiveVideoInfo(globalTargetTime);
+            const targetTime = (seekBar.value / 100) * videoDuration;
+            videoPlayer.currentTime = targetTime;
 
             timelineProgressOverlay.style.width = `${seekBar.value}%`;
-            timeDisplay.textContent = `${formatTime(globalTargetTime)} / ${formatTime(totalDuration)}`;
-
-            if (info.index !== currentPlayingIndex) {
-                currentPlayingIndex = info.index;
-                videoPlayer.src = URL.createObjectURL(playlist[currentPlayingIndex]);
-                videoPlayer.currentTime = info.localTime;
-            } else {
-                videoPlayer.currentTime = info.localTime;
-            }
+            timeDisplay.textContent = `${formatTime(targetTime)} / ${formatTime(videoDuration)}`;
         });
 
         seekBar.addEventListener('change', () => {
@@ -528,53 +438,35 @@
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
-        // Генерация кадров с учетом пропорций длительности каждого видео
-        async function generateFullFilmstrip() {
+        async function generateFilmstrip() {
             timelineStrip.innerHTML = '';
-            const totalBaseFrames = 40; // Общее количество кадров на весь таймлайн
+            const framesCount = 10;
 
-            for (let i = 0; i < playlist.length; i++) {
-                if (i > 0) {
-                    const separator = document.createElement('div');
-                    separator.className = 'video-separator';
-                    timelineStrip.appendChild(separator);
-                }
+            const url = URL.createObjectURL(videoFile);
+            metaVideo.src = url;
+            
+            await new Promise(resolve => {
+                metaVideo.onloadedmetadata = () => resolve();
+            });
 
-                const url = URL.createObjectURL(playlist[i]);
-                metaVideo.src = url;
+            for (let j = 0; j < framesCount; j++) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 80;
+                canvas.height = 60;
+                const ctx = canvas.getContext('2d');
+                
+                metaVideo.currentTime = (videoDuration / framesCount) * j;
                 
                 await new Promise(resolve => {
-                    metaVideo.onloadedmetadata = () => resolve();
+                    const seekHandler = () => {
+                        metaVideo.removeEventListener('seeked', seekHandler);
+                        ctx.drawImage(metaVideo, 0, 0, canvas.width, canvas.height);
+                        resolve();
+                    };
+                    metaVideo.addEventListener('seeked', seekHandler);
                 });
-
-                const duration = videoDurations[i] || 1;
-                // Количество кадров для видео пропорционально его длительности
-                const framesPerVideo = Math.max(4, Math.round((duration / totalDuration) * totalBaseFrames));
-
-                const group = document.createElement('div');
-                group.className = 'timeline-group';
-                group.style.flex = duration; // Задаем пропорциональную ширину через flex
-
-                for (let j = 0; j < framesPerVideo; j++) {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 80;
-                    canvas.height = 60;
-                    const ctx = canvas.getContext('2d');
-                    
-                    metaVideo.currentTime = (duration / framesPerVideo) * j;
-                    
-                    await new Promise(resolve => {
-                        const seekHandler = () => {
-                            metaVideo.removeEventListener('seeked', seekHandler);
-                            ctx.drawImage(metaVideo, 0, 0, canvas.width, canvas.height);
-                            resolve();
-                        };
-                        metaVideo.addEventListener('seeked', seekHandler);
-                    });
-                    
-                    group.appendChild(canvas);
-                }
-                timelineStrip.appendChild(group);
+                
+                timelineStrip.appendChild(canvas);
             }
             metaVideo.src = '';
         }
