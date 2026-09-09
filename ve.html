@@ -16,7 +16,7 @@
             align-items: center;
         }
 
-        /* Область перетаскивания (сделали заметно больше) */
+        /* Область перетаскивания */
         .upload-container {
             border: 2px dashed rgba(255, 255, 255, 0.12);
             border-radius: 16px;
@@ -62,7 +62,6 @@
             font-weight: 500;
         }
 
-        /* Линия прогресса */
         .progress-bar-bg {
             width: 100%;
             height: 6px;
@@ -85,6 +84,46 @@
             font-weight: 600;
         }
 
+        /* Рабочая область плеера после загрузки */
+        .editor-workspace {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        video {
+            width: 640px;
+            max-height: 360px;
+            background-color: #000000;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            outline: none;
+        }
+
+        .player-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-control {
+            background-color: #262a33;
+            color: #e2e8f0;
+            padding: 10px 20px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .btn-control:hover {
+            background-color: #313642;
+            border-color: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+        }
+
         #fileInput {
             display: none;
         }
@@ -92,13 +131,12 @@
 </head>
 <body>
 
+    <!-- Контейнер загрузки -->
     <div class="upload-container" id="dropZone">
-        <!-- Начальный вид -->
         <div id="initialContent">
             <p class="upload-text">Drag or choose files</p>
         </div>
 
-        <!-- Вид во время загрузки -->
         <div class="progress-container" id="progressContainer">
             <div class="file-size-text" id="fileSizeText">0 MB / 0 MB</div>
             <div class="progress-bar-bg">
@@ -106,9 +144,17 @@
             </div>
             <div class="progress-percent" id="progressPercent">0%</div>
         </div>
-
-        <input type="file" id="fileInput" multiple>
     </div>
+
+    <!-- Рабочая область плеера (появляется после загрузки) -->
+    <div class="editor-workspace" id="editorWorkspace">
+        <video id="videoPlayer"></video>
+        <div class="player-controls">
+            <button class="btn-control" id="playPauseBtn">Play</button>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="video/*">
 
     <script>
         const dropZone = document.getElementById('dropZone');
@@ -118,10 +164,13 @@
         const fileSizeText = document.getElementById('fileSizeText');
         const progressBarFill = document.getElementById('progressBarFill');
         const progressPercent = document.getElementById('progressPercent');
+        
+        const editorWorkspace = document.getElementById('editorWorkspace');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const playPauseBtn = document.getElementById('playPauseBtn');
 
         dropZone.addEventListener('click', () => {
-            // Открываем выбор файла только если загрузка еще не идет
-            if (progressContainer.style.display !== 'flex') {
+            if (progressContainer.style.display !== 'flex' && dropZone.style.display !== 'none') {
                 fileInput.click();
             }
         });
@@ -149,24 +198,27 @@
             }
         });
 
-        // Функция имитации и отображения прогресса загрузки файла
         function handleFile(file) {
             initialContent.style.display = 'none';
             progressContainer.style.display = 'flex';
 
             const totalBytes = file.size;
             const totalMb = (totalBytes / (1024 * 1024)).toFixed(1);
-            
             let loadedBytes = 0;
-            // Симулируем скорость загрузки для наглядности
-            const increment = totalBytes / 50; 
+            const increment = totalBytes / 40; 
 
             const interval = setInterval(() => {
                 loadedBytes += increment;
                 if (loadedBytes >= totalBytes) {
                     loadedBytes = totalBytes;
                     clearInterval(interval);
-                    console.log("File loaded successfully:", file.name);
+                    
+                    // Переключаем интерфейс на видеоплеер после завершения загрузки
+                    setTimeout(() => {
+                        dropZone.style.display = 'none';
+                        videoPlayer.src = URL.createObjectURL(file);
+                        editorWorkspace.style.display = 'flex';
+                    }, 300);
                 }
 
                 const loadedMb = (loadedBytes / (1024 * 1024)).toFixed(1);
@@ -175,8 +227,27 @@
                 fileSizeText.textContent = `${loadedMb} MB / ${totalMb} MB`;
                 progressBarFill.style.width = `${percent}%`;
                 progressPercent.textContent = `${percent}%`;
-            }, 40);
+            }, 30);
         }
+
+        // Логика кнопки Пауза/Старт
+        playPauseBtn.addEventListener('click', () => {
+            if (videoPlayer.paused) {
+                videoPlayer.play();
+                playPauseBtn.textContent = 'Pause';
+            } else {
+                videoPlayer.pause();
+                playPauseBtn.textContent = 'Play';
+            }
+        });
+
+        // Синхронизация текста кнопки, если видео закончилось или управляется иначе
+        videoPlayer.addEventListener('pause', () => {
+            playPauseBtn.textContent = 'Play';
+        });
+        videoPlayer.addEventListener('play', () => {
+            playPauseBtn.textContent = 'Pause';
+        });
     </script>
 </body>
 </html>
