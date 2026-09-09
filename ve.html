@@ -94,13 +94,36 @@
             max-width: 960px;
         }
 
-        video {
+        .video-container {
+            position: relative;
             width: 100%;
             max-height: 500px;
             background-color: #000000;
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        video {
+            width: 100%;
+            max-height: 500px;
             outline: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: opacity 0.1s ease;
+        }
+
+        #videoPlayerA {
+            z-index: 2;
+        }
+
+        #videoPlayerB {
+            z-index: 1;
+            opacity: 0;
         }
 
         /* Панель управления */
@@ -276,7 +299,10 @@
 
     <!-- Рабочая область плеера -->
     <div class="editor-workspace" id="editorWorkspace">
-        <video id="videoPlayer" controlslist="nodownload noplaybackrate" disablepictureinpicture></video>
+        <div class="video-container">
+            <video id="videoPlayerA" controlslist="nodownload noplaybackrate" disablepictureinpicture></video>
+            <video id="videoPlayerB" controlslist="nodownload noplaybackrate" disablepictureinpicture></video>
+        </div>
         <div class="player-controls">
             <div class="controls-top">
                 <div class="controls-left">
@@ -316,7 +342,8 @@
         const progressPercent = document.getElementById('progressPercent');
         
         const editorWorkspace = document.getElementById('editorWorkspace');
-        const videoPlayer = document.getElementById('videoPlayer');
+        const videoA = document.getElementById('videoPlayerA');
+        const videoB = document.getElementById('videoPlayerB');
         const metaVideo = document.getElementById('metaVideo');
         const playPauseBtn = document.getElementById('playPauseBtn');
         const seekBar = document.getElementById('seekBar');
@@ -325,11 +352,16 @@
         const timelineProgressOverlay = document.getElementById('timelineProgressOverlay');
         const volumeSlider = document.getElementById('volumeSlider');
 
-        let playlist = []; // Массив объектов файлов
-        let videoDurations = []; // Длительности каждого видео
-        let totalDuration = 0; // Суммарная длительность всего проекта
+        let playlist = [];
+        let videoDurations = [];
+        let totalDuration = 0;
+        let currentPlayingIndex = 0;
+        let activeVideo = videoA;
+        let inactiveVideo = videoB;
+        let isChangingTime = false;
 
-        videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
+        videoA.addEventListener('contextmenu', (e) => e.preventDefault());
+        videoB.addEventListener('contextmenu', (e) => e.preventDefault());
 
         dropZone.addEventListener('click', () => {
             if (progressContainer.style.display !== 'flex' && dropZone.style.display !== 'none') {
@@ -405,7 +437,6 @@
             }, 30);
         }
 
-        // Вычисляем длительности всех файлов и общую длительность «склеенного» видео
         async function initProjectMetadata() {
             videoDurations = [];
             totalDuration = 0;
@@ -420,20 +451,26 @@
                 totalDuration += metaVideo.duration;
             }
 
-            // Загружаем первое видео и ставим его на паузу в начале
-            videoPlayer.src = URL.createObjectURL(playlist[0]);
-            videoPlayer.currentTime = 0;
+            currentPlayingIndex = 0;
+            activeVideo.src = URL.createObjectURL(playlist[0]);
+            activeVideo.currentTime = 0;
+            activeVideo.style.opacity = '1';
+            inactiveVideo.style.opacity = '0';
+
+            // Предзагружаем следующее видео в фоновый плеер, если оно есть
+            if (playlist.length > 1) {
+                inactiveVideo.src = URL.createObjectURL(playlist[1]);
+                inactiveVideo.currentTime = 0;
+            }
 
             await generateFullFilmstrip();
         }
 
-        // Получить индекс текущего видео и локальное время в нем по общей шкале времени проекта
         function getActiveVideoInfo(globalTime) {
             let accumulatedTime = 0;
             for (let i = 0; i < playlist.length; i++) {
                 if (globalTime <= accumulatedTime + videoDurations[i] || i === playlist.length - 1) {
                     let localTime = globalTime - accumulatedTime;
-                    // Защита от выхода за границы
                     if (localTime < 0) localTime = 0;
                     if (localTime > videoDurations[i]) localTime = videoDurations[i];
                     return { index: i, localTime: localTime };
@@ -443,43 +480,50 @@
             return { index: 0, localTime: 0 };
         }
 
-        let isChangingTime = false;
+        // Обновление прогресса во время проигрывания
+        activeVideo.addEventListener('timeupdate', () => {
+            if (isChangingTime || totalDuration === 0 || activeVideo.paused) return;
 
-        // Отслеживаем воспроизведение и плавно переключаем куски видео
-        videoPlayer.addEventListener('timeupdate', () => {
-            if (isChangingTime || totalDuration === 0) return;
-
-            // Вычисляем текущее глобальное время проекта
             let accumulatedTime = 0;
             for (let i = 0; i < currentPlayingIndex; i++) {
                 accumulatedTime += videoDurations[i];
             }
-            const globalCurrent = accumulatedTime + videoPlayer.currentTime;
-            const percent = (globalCurrent / totalDuration) * 100;
+            const globalCurrent = accumulatedTime + activeVideo.currentTime;
+            
+            // Если дошли до конца текущего ролика — плавно переключаемся на заранее предзагруженный следующий
+            if (activeVideo.currentTime >= videoDurations[currentPlayingIndex] - 0.05) {
+                if (currentPlayingIndex + 1 < playlist.length) {
+                    currentPlayingIndex++;
+                    
+                    // Меняем активный и неактивный плееры местами мгновенно
+                    let temp = activeVideo;
+                    activeVideo = inactiveVideo;
+                    inactiveVideo = temp;
 
+                    activeVideo.style.zIndex = '2';
+                    activeVideo.style.opacity = '1';
+                    inactiveVideo.style.zIndex = '1';
+                    inactiveVideo.style.opacity = '0';
+
+                    activeVideo.volume = volumeSlider.value;
+                    activeVideo.play();
+
+                    // Предзагружаем следующий за ним файл в фоновый плеер
+                    if (currentPlayingIndex + 1 < playlist.length) {
+                        inactiveVideo.src = URL.createObjectURL(playlist[currentPlayingIndex + 1]);
+                        inactiveVideo.currentTime = 0;
+                    }
+                    return;
+                }
+            }
+
+            const percent = (globalCurrent / totalDuration) * 100;
             seekBar.value = percent;
             timelineProgressOverlay.style.width = `${percent}%`;
             timeDisplay.textContent = `${formatTime(globalCurrent)} / ${formatTime(totalDuration)}`;
         });
 
-        let currentPlayingIndex = 0;
-
-        // Обработка окончания текущего фрагмента видео — бесшовно переходим к следующему
-        videoPlayer.addEventListener('ended', () => {
-            currentPlayingIndex++;
-            if (currentPlayingIndex < playlist.length) {
-                videoPlayer.src = URL.createObjectURL(playlist[currentPlayingIndex]);
-                videoPlayer.currentTime = 0;
-                videoPlayer.play();
-            } else {
-                currentPlayingIndex = 0;
-                videoPlayer.src = URL.createObjectURL(playlist[0]);
-                videoPlayer.currentTime = 0;
-                playPauseBtn.textContent = '▶';
-            }
-        });
-
-        // Перемотка по общему таймлайну (работает как в едином видео)
+        // Перемотка по таймлайну
         seekBar.addEventListener('input', () => {
             if (totalDuration === 0) return;
             isChangingTime = true;
@@ -492,10 +536,15 @@
 
             if (info.index !== currentPlayingIndex) {
                 currentPlayingIndex = info.index;
-                videoPlayer.src = URL.createObjectURL(playlist[currentPlayingIndex]);
-                videoPlayer.currentTime = info.localTime;
+                activeVideo.src = URL.createObjectURL(playlist[currentPlayingIndex]);
+                activeVideo.currentTime = info.localTime;
+
+                if (currentPlayingIndex + 1 < playlist.length) {
+                    inactiveVideo.src = URL.createObjectURL(playlist[currentPlayingIndex + 1]);
+                    inactiveVideo.currentTime = 0;
+                }
             } else {
-                videoPlayer.currentTime = info.localTime;
+                activeVideo.currentTime = info.localTime;
             }
         });
 
@@ -509,7 +558,6 @@
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
-        // Генерация кадров для ленты таймлайна
         async function generateFullFilmstrip() {
             timelineStrip.innerHTML = '';
             const framesPerVideo = 10;
@@ -548,20 +596,21 @@
         }
 
         playPauseBtn.addEventListener('click', () => {
-            if (videoPlayer.paused) {
-                videoPlayer.play();
+            if (activeVideo.paused) {
+                activeVideo.play();
                 playPauseBtn.textContent = '❚❚';
             } else {
-                videoPlayer.pause();
+                activeVideo.pause();
                 playPauseBtn.textContent = '▶';
             }
         });
 
-        videoPlayer.addEventListener('pause', () => { if(!isChangingTime) playPauseBtn.textContent = '▶'; });
-        videoPlayer.addEventListener('play', () => { playPauseBtn.textContent = '❚❚'; });
+        activeVideo.addEventListener('pause', () => { if(!isChangingTime) playPauseBtn.textContent = '▶'; });
+        activeVideo.addEventListener('play', () => { playPauseBtn.textContent = '❚❚'; });
 
         volumeSlider.addEventListener('input', () => {
-            videoPlayer.volume = volumeSlider.value;
+            activeVideo.volume = volumeSlider.value;
+            inactiveVideo.volume = volumeSlider.value;
         });
     </script>
 </body>
