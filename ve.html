@@ -209,6 +209,26 @@
             border-right: 1px solid rgba(0, 0, 0, 0.3);
         }
 
+        /* Стиль для разделителя между видео */
+        .video-separator {
+            width: 8px;
+            background-color: #ffffff;
+            border-radius: 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+            margin: 0 2px;
+            height: 100%;
+        }
+
+        .video-separator::after {
+            content: '';
+            width: 2px;
+            height: 100%;
+            background-color: #000000;
+        }
+
         .timeline-progress-overlay {
             position: absolute;
             top: 0;
@@ -325,9 +345,9 @@
         const timelineProgressOverlay = document.getElementById('timelineProgressOverlay');
         const volumeSlider = document.getElementById('volumeSlider');
 
-        let playlist = []; // Массив объектов файлов
-        let videoDurations = []; // Длительности каждого видео
-        let totalDuration = 0; // Суммарная длительность всего проекта
+        let playlist = []; 
+        let videoDurations = []; 
+        let totalDuration = 0; 
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -405,7 +425,6 @@
             }, 30);
         }
 
-        // Вычисляем длительности всех файлов и общую длительность «склеенного» видео
         async function initProjectMetadata() {
             videoDurations = [];
             totalDuration = 0;
@@ -420,20 +439,17 @@
                 totalDuration += metaVideo.duration;
             }
 
-            // Загружаем первое видео и ставим его на паузу в начале
             videoPlayer.src = URL.createObjectURL(playlist[0]);
             videoPlayer.currentTime = 0;
 
             await generateFullFilmstrip();
         }
 
-        // Получить индекс текущего видео и локальное время в нем по общей шкале времени проекта
         function getActiveVideoInfo(globalTime) {
             let accumulatedTime = 0;
             for (let i = 0; i < playlist.length; i++) {
                 if (globalTime <= accumulatedTime + videoDurations[i] || i === playlist.length - 1) {
                     let localTime = globalTime - accumulatedTime;
-                    // Защита от выхода за границы
                     if (localTime < 0) localTime = 0;
                     if (localTime > videoDurations[i]) localTime = videoDurations[i];
                     return { index: i, localTime: localTime };
@@ -445,11 +461,9 @@
 
         let isChangingTime = false;
 
-        // Отслеживаем воспроизведение и плавно переключаем куски видео
         videoPlayer.addEventListener('timeupdate', () => {
             if (isChangingTime || totalDuration === 0) return;
 
-            // Вычисляем текущее глобальное время проекта
             let accumulatedTime = 0;
             for (let i = 0; i < currentPlayingIndex; i++) {
                 accumulatedTime += videoDurations[i];
@@ -464,7 +478,6 @@
 
         let currentPlayingIndex = 0;
 
-        // Обработка окончания текущего фрагмента видео — бесшовно переходим к следующему
         videoPlayer.addEventListener('ended', () => {
             currentPlayingIndex++;
             if (currentPlayingIndex < playlist.length) {
@@ -479,7 +492,6 @@
             }
         });
 
-        // Перемотка по общему таймлайну (работает как в едином видео)
         seekBar.addEventListener('input', () => {
             if (totalDuration === 0) return;
             isChangingTime = true;
@@ -509,12 +521,18 @@
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
-        // Генерация кадров для ленты таймлайна
         async function generateFullFilmstrip() {
             timelineStrip.innerHTML = '';
             const framesPerVideo = 10;
 
             for (let i = 0; i < playlist.length; i++) {
+                // Если это не первое видео, добавляем разделитель перед ним
+                if (i > 0) {
+                    const separator = document.createElement('div');
+                    separator.className = 'video-separator';
+                    timelineStrip.appendChild(separator);
+                }
+
                 const url = URL.createObjectURL(playlist[i]);
                 metaVideo.src = url;
                 
