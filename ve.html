@@ -196,7 +196,7 @@
             transition: border-color 0.2s, box-shadow 0.2s;
         }
 
-        /* Состояние активного таймлайна с белой обводкой */
+        /* Состояние активного таймлайна с белой обводкой (по ЛКМ) */
         .timeline-container.active {
             border-color: #ffffff;
             box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
@@ -235,6 +235,7 @@
             height: 100%;
             opacity: 0;
             cursor: pointer;
+            pointer-events: none; /* Отключаем стандартные клики range-инпута */
         }
 
         #fileInput {
@@ -311,6 +312,8 @@
         let videoDuration = 0;
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
+        // Отключаем стандартное контекстное меню браузера по ПКМ на таймлайне
+        timelineContainer.addEventListener('contextmenu', (e) => e.preventDefault());
 
         dropZone.addEventListener('click', () => {
             if (progressContainer.style.display !== 'flex' && dropZone.style.display !== 'none') {
@@ -405,31 +408,43 @@
             playPauseBtn.textContent = '▶';
         });
 
-        // Добавление белой обводки при клике на таймлайн
-        seekBar.addEventListener('mousedown', () => {
-            timelineContainer.classList.add('active');
+        // ЛКМ (кнопка 0) — выбирает клип (появляется белая обводка)
+        timelineContainer.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                timelineContainer.classList.add('active');
+            }
         });
 
-        // Убираем обводку при клике в любое другое место страницы
-        document.addEventListener('click', (e) => {
-            if (!timelineContainer.contains(e.target)) {
+        // Убираем обводку при клике ЛКМ в любое другое место страницы
+        document.addEventListener('mousedown', (e) => {
+            if (e.button === 0 && !timelineContainer.contains(e.target)) {
                 timelineContainer.classList.remove('active');
             }
         });
 
-        seekBar.addEventListener('input', () => {
-            if (videoDuration === 0) return;
-            isChangingTime = true;
+        // ПКМ (кнопка 2) — выбирает момент (перематывает видео) и активирует таймлайн
+        timelineContainer.addEventListener('mousedown', (e) => {
+            if (e.button === 2) {
+                if (videoDuration === 0) return;
+                timelineContainer.classList.add('active');
+                isChangingTime = true;
 
-            const targetTime = (seekBar.value / 100) * videoDuration;
-            videoPlayer.currentTime = targetTime;
+                const rect = timelineContainer.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const width = rect.width;
+                let percent = (clickX / width) * 100;
+                
+                if (percent < 0) percent = 0;
+                if (percent > 100) percent = 100;
 
-            timelineProgressOverlay.style.width = `${seekBar.value}%`;
-            timeDisplay.textContent = `${formatTime(targetTime)} / ${formatTime(videoDuration)}`;
-        });
+                seekBar.value = percent;
+                const targetTime = (percent / 100) * videoDuration;
+                videoPlayer.currentTime = targetTime;
 
-        seekBar.addEventListener('change', () => {
-            isChangingTime = false;
+                timelineProgressOverlay.style.width = `${percent}%`;
+                timeDisplay.textContent = `${formatTime(targetTime)} / ${formatTime(videoDuration)}`;
+                isChangingTime = false;
+            }
         });
 
         function formatTime(seconds) {
