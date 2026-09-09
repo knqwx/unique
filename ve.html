@@ -122,13 +122,13 @@
             justify-content: space-between;
         }
 
-        .controls-left {
+        .controls-left, .controls-right {
             display: flex;
             align-items: center;
             gap: 12px;
         }
 
-        /* Кнопка с символами */
+        /* Кнопки управления */
         .btn-control {
             background-color: #262a33;
             color: #e2e8f0;
@@ -150,7 +150,7 @@
             color: #ffffff;
         }
 
-        /* Счетчик времени (просмотрено / всего) */
+        /* Счетчик времени */
         .time-display {
             font-size: 0.9rem;
             color: #94a3b8;
@@ -158,7 +158,29 @@
             font-weight: 500;
         }
 
-        /* Кадровая полоса перемотки (Timeline / Filmstrip) */
+        /* Ползунок громкости */
+        .volume-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 90px;
+            height: 6px;
+            background: #262a33;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+
+        /* Кадровая полоса перемотки */
         .timeline-container {
             position: relative;
             width: 100%;
@@ -183,7 +205,6 @@
             border-right: 1px solid rgba(0, 0, 0, 0.3);
         }
 
-        /* Ползунок поверх кадров */
         .timeline-progress-overlay {
             position: absolute;
             top: 0;
@@ -236,6 +257,10 @@
                     <button class="btn-control" id="playPauseBtn">▶</button>
                     <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
                 </div>
+                <div class="controls-right">
+                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
+                    <button class="btn-control" id="fullscreenBtn" title="Fullscreen">⛶</button>
+                </div>
             </div>
             
             <!-- Полоса с кадрами -->
@@ -265,6 +290,8 @@
         const timeDisplay = document.getElementById('timeDisplay');
         const timelineStrip = document.getElementById('timelineStrip');
         const timelineProgressOverlay = document.getElementById('timelineProgressOverlay');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
 
         dropZone.addEventListener('click', () => {
             if (progressContainer.style.display !== 'flex' && dropZone.style.display !== 'none') {
@@ -316,7 +343,6 @@
                         videoPlayer.src = videoUrl;
                         editorWorkspace.style.display = 'flex';
                         
-                        // Генерируем кадры для таймлайна после загрузки метаданных
                         videoPlayer.onloadedmetadata = () => {
                             generateFilmstrip(videoPlayer);
                         };
@@ -332,17 +358,15 @@
             }, 30);
         }
 
-        // Форматирование секунд в вид MM:SS
         function formatTime(seconds) {
             const mins = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
-        // Генерация кадров (филмстрипа) для таймлайна
         async function generateFilmstrip(video) {
             timelineStrip.innerHTML = '';
-            const frameCount = 10; // Количество превью-кадров на полосе
+            const frameCount = 10;
             const duration = video.duration;
             
             for (let i = 0; i < frameCount; i++) {
@@ -351,10 +375,8 @@
                 canvas.height = 60;
                 const ctx = canvas.getContext('2d');
                 
-                // Переходим к нужному моменту времени для захвата кадра
                 video.currentTime = (duration / frameCount) * i;
                 
-                // Ждем пока кадр отрисуется
                 await new Promise(resolve => {
                     const seekHandler = () => {
                         video.removeEventListener('seeked', seekHandler);
@@ -366,11 +388,9 @@
                 
                 timelineStrip.appendChild(canvas);
             }
-            // Возвращаем видео в начало
             video.currentTime = 0;
         }
 
-        // Кнопка Воспроизведение / Пауза
         playPauseBtn.addEventListener('click', () => {
             if (videoPlayer.paused) {
                 videoPlayer.play();
@@ -384,7 +404,6 @@
         videoPlayer.addEventListener('pause', () => { playPauseBtn.textContent = '▶'; });
         videoPlayer.addEventListener('play', () => { playPauseBtn.textContent = '❚❚'; });
 
-        // Обновление времени и прогресса таймлайна
         videoPlayer.addEventListener('timeupdate', () => {
             if (!isNaN(videoPlayer.duration)) {
                 const current = videoPlayer.currentTime;
@@ -397,12 +416,27 @@
             }
         });
 
-        // Перемотка при движении ползунка
         seekBar.addEventListener('input', () => {
             if (!isNaN(videoPlayer.duration)) {
                 const time = (seekBar.value / 100) * videoPlayer.duration;
                 videoPlayer.currentTime = time;
                 timelineProgressOverlay.style.width = `${seekBar.value}%`;
+            }
+        });
+
+        // Управление громкостью
+        volumeSlider.addEventListener('input', () => {
+            videoPlayer.volume = volumeSlider.value;
+        });
+
+        // Полноэкранный режим
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                videoPlayer.requestFullscreen().catch(err => {
+                    console.error("Error attempting to enable fullscreen:", err);
+                });
+            } else {
+                document.exitFullscreen();
             }
         });
     </script>
