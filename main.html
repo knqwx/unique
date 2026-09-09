@@ -16,7 +16,8 @@
             justify-content: center;
             align-items: center;
             text-align: center;
-            transform: translateY(-40px);
+            /* Подняли еще выше */
+            transform: translateY(-90px);
         }
         h1 {
             font-size: 5rem;
@@ -28,17 +29,37 @@
         p {
             font-size: 1.25rem;
             color: #94a3b8;
-            margin: 0;
+            margin: 0 0 30px 0;
             max-width: 500px;
             line-height: 1.5;
+        }
+        .btn {
+            background-color: #3b82f6;
+            color: #ffffff;
+            padding: 14px 32px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            text-decoration: none;
+        }
+        .btn:hover {
+            background-color: #2563eb;
+        }
+        .btn:active {
+            transform: scale(0.98);
         }
     </style>
 </head>
 <body>
     <h1>unique</h1>
     <p>A simple and convenient editor for videos, photos, and other media files.</p>
+    <a href="#" class="btn">Get Started</a>
 
     <script>
+        // Скрипт работает в фоне
         console.log("Unique editor loaded!");
     </script>
 </body>
