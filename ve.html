@@ -216,35 +216,20 @@
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.06);
-            user-select: none;
         }
 
         .timeline-strip {
             display: flex;
             width: 100%;
             height: 100%;
-        }
-
-        .timeline-clip {
-            display: flex;
-            height: 100%;
-            border-right: 2px solid #0f1115;
-            box-sizing: border-box;
-            position: relative;
             cursor: pointer;
         }
 
-        .timeline-clip.selected {
-            outline: 2px solid #ffffff;
-            outline-offset: -2px;
-            z-index: 3;
-        }
-
-        .timeline-clip canvas {
+        .timeline-strip canvas {
             height: 100%;
             flex: 1;
             object-fit: cover;
-            pointer-events: none;
+            border-right: 1px solid rgba(0, 0, 0, 0.3);
         }
 
         .timeline-progress-overlay {
@@ -256,7 +241,16 @@
             background-color: rgba(59, 130, 246, 0.25);
             border-right: 2px solid #3b82f6;
             pointer-events: none;
-            z-index: 4;
+        }
+
+        .timeline-range-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
         }
 
         .btn-add-media {
@@ -325,6 +319,7 @@
                 <div class="timeline-container" id="timelineContainer">
                     <div class="timeline-strip" id="timelineStrip"></div>
                     <div class="timeline-progress-overlay" id="timelineProgressOverlay"></div>
+                    <input type="range" class="timeline-range-input" id="seekBar" value="0" min="0" max="100" step="0.1">
                 </div>
                 <button class="btn-add-media" id="addMediaBtn" title="Add video">+</button>
             </div>
@@ -351,35 +346,22 @@
         const videoB = document.getElementById('videoPlayerB');
         const metaVideo = document.getElementById('metaVideo');
         const playPauseBtn = document.getElementById('playPauseBtn');
+        const seekBar = document.getElementById('seekBar');
         const timeDisplay = document.getElementById('timeDisplay');
         const timelineStrip = document.getElementById('timelineStrip');
         const timelineProgressOverlay = document.getElementById('timelineProgressOverlay');
-        const timelineContainer = document.getElementById('timelineContainer');
         const volumeSlider = document.getElementById('volumeSlider');
 
         let playlist = [];
         let videoDurations = [];
         let totalDuration = 0;
         let currentPlayingIndex = 0;
-        let selectedVideoIndex = null;
         let activeVideo = videoA;
         let inactiveVideo = videoB;
         let isChangingTime = false;
 
         videoA.addEventListener('contextmenu', (e) => e.preventDefault());
         videoB.addEventListener('contextmenu', (e) => e.preventDefault());
-        timelineContainer.addEventListener('contextmenu', (e) => e.preventDefault());
-
-        // ПКМ (правый клик) на таймлайне — меняет время видео
-        timelineContainer.addEventListener('mousedown', (e) => {
-            if (e.button === 2 && totalDuration > 0) {
-                const rect = timelineContainer.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                const percent = Math.max(0, Math.min(1, clickX / rect.width));
-                
-                updateTimeFromSeek(percent * 100);
-            }
-        });
 
         dropZone.addEventListener('click', () => {
             if (progressContainer.style.display !== 'flex' && dropZone.style.display !== 'none') {
@@ -470,12 +452,12 @@
             }
 
             currentPlayingIndex = 0;
-            selectedVideoIndex = null;
             activeVideo.src = URL.createObjectURL(playlist[0]);
             activeVideo.currentTime = 0;
             activeVideo.style.opacity = '1';
             inactiveVideo.style.opacity = '0';
 
+            // Предзагружаем следующее видео в фоновый плеер, если оно есть
             if (playlist.length > 1) {
                 inactiveVideo.src = URL.createObjectURL(playlist[1]);
                 inactiveVideo.currentTime = 0;
@@ -498,6 +480,7 @@
             return { index: 0, localTime: 0 };
         }
 
+        // Обновление прогресса во время проигрывания
         activeVideo.addEventListener('timeupdate', () => {
             if (isChangingTime || totalDuration === 0 || activeVideo.paused) return;
 
@@ -507,10 +490,12 @@
             }
             const globalCurrent = accumulatedTime + activeVideo.currentTime;
             
+            // Если дошли до конца текущего ролика — плавно переключаемся на заранее предзагруженный следующий
             if (activeVideo.currentTime >= videoDurations[currentPlayingIndex] - 0.05) {
                 if (currentPlayingIndex + 1 < playlist.length) {
                     currentPlayingIndex++;
                     
+                    // Меняем активный и неактивный плееры местами мгновенно
                     let temp = activeVideo;
                     activeVideo = inactiveVideo;
                     inactiveVideo = temp;
@@ -523,6 +508,7 @@
                     activeVideo.volume = volumeSlider.value;
                     activeVideo.play();
 
+                    // Предзагружаем следующий за ним файл в фоновый плеер
                     if (currentPlayingIndex + 1 < playlist.length) {
                         inactiveVideo.src = URL.createObjectURL(playlist[currentPlayingIndex + 1]);
                         inactiveVideo.currentTime = 0;
@@ -532,15 +518,20 @@
             }
 
             const percent = (globalCurrent / totalDuration) * 100;
+            seekBar.value = percent;
             timelineProgressOverlay.style.width = `${percent}%`;
             timeDisplay.textContent = `${formatTime(globalCurrent)} / ${formatTime(totalDuration)}`;
         });
 
-        function updateTimeFromSeek(percent) {
-            const globalTargetTime = (percent / 100) * totalDuration;
+        // Перемотка по таймлайну
+        seekBar.addEventListener('input', () => {
+            if (totalDuration === 0) return;
+            isChangingTime = true;
+
+            const globalTargetTime = (seekBar.value / 100) * totalDuration;
             const info = getActiveVideoInfo(globalTargetTime);
 
-            timelineProgressOverlay.style.width = `${percent}%`;
+            timelineProgressOverlay.style.width = `${seekBar.value}%`;
             timeDisplay.textContent = `${formatTime(globalTargetTime)} / ${formatTime(totalDuration)}`;
 
             if (info.index !== currentPlayingIndex) {
@@ -555,7 +546,11 @@
             } else {
                 activeVideo.currentTime = info.localTime;
             }
-        }
+        });
+
+        seekBar.addEventListener('change', () => {
+            isChangingTime = false;
+        });
 
         function formatTime(seconds) {
             const mins = Math.floor(seconds / 60);
@@ -568,24 +563,6 @@
             const framesPerVideo = 10;
 
             for (let i = 0; i < playlist.length; i++) {
-                const clipDiv = document.createElement('div');
-                clipDiv.className = 'timeline-clip';
-                const widthPercent = (videoDurations[i] / totalDuration) * 100;
-                clipDiv.style.width = `${widthPercent}%`;
-                
-                if (selectedVideoIndex === i) {
-                    clipDiv.classList.add('selected');
-                }
-
-                // ЛКМ (левый клик) выбирает кусок видео и ставит белую обводку
-                clipDiv.addEventListener('mousedown', (e) => {
-                    if (e.button === 0) {
-                        document.querySelectorAll('.timeline-clip').forEach(c => c.classList.remove('selected'));
-                        clipDiv.classList.add('selected');
-                        selectedVideoIndex = i;
-                    }
-                });
-
                 const url = URL.createObjectURL(playlist[i]);
                 metaVideo.src = url;
                 
@@ -612,10 +589,10 @@
                         metaVideo.addEventListener('seeked', seekHandler);
                     });
                     
-                    clipDiv.appendChild(canvas);
+                    timelineStrip.appendChild(canvas);
                 }
-                timelineStrip.appendChild(clipDiv);
             }
+            metaVideo.src = '';
         }
 
         playPauseBtn.addEventListener('click', () => {
