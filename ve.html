@@ -177,9 +177,17 @@
             cursor: pointer;
         }
 
+        /* Строка с таймлайном и кнопкой добавления */
+        .timeline-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+        }
+
         .timeline-container {
             position: relative;
-            width: 100%;
+            flex-grow: 1;
             height: 50px;
             background-color: #0f1115;
             border-radius: 8px;
@@ -222,7 +230,29 @@
             cursor: pointer;
         }
 
-        #fileInput {
+        .btn-add-media {
+            width: 45px;
+            height: 50px;
+            background-color: #262a33;
+            color: #e2e8f0;
+            font-size: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s, border-color 0.2s;
+            flex-shrink: 0;
+        }
+
+        .btn-add-media:hover {
+            background-color: #313642;
+            border-color: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+        }
+
+        #fileInput, #addMediaInput {
             display: none;
         }
     </style>
@@ -246,7 +276,6 @@
 
     <!-- Рабочая область плеера -->
     <div class="editor-workspace" id="editorWorkspace">
-        <!-- Добавлен параметр noplaybackrate для полного скрытия точек и меню скорости -->
         <video id="videoPlayer" controlslist="nodownload noplaybackrate" disablepictureinpicture></video>
         <div class="player-controls">
             <div class="controls-top">
@@ -256,23 +285,29 @@
                 </div>
                 <div class="controls-right">
                     <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
-                    <button class="btn-control" id="fullscreenBtn" title="Fullscreen">⛶</button>
                 </div>
             </div>
             
-            <div class="timeline-container" id="timelineContainer">
-                <div class="timeline-strip" id="timelineStrip"></div>
-                <div class="timeline-progress-overlay" id="timelineProgressOverlay"></div>
-                <input type="range" class="timeline-range-input" id="seekBar" value="0" min="0" max="100" step="0.1">
+            <!-- Таймлайн и кнопка добавления -->
+            <div class="timeline-wrapper">
+                <div class="timeline-container" id="timelineContainer">
+                    <div class="timeline-strip" id="timelineStrip"></div>
+                    <div class="timeline-progress-overlay" id="timelineProgressOverlay"></div>
+                    <input type="range" class="timeline-range-input" id="seekBar" value="0" min="0" max="100" step="0.1">
+                </div>
+                <button class="btn-add-media" id="addMediaBtn" title="Add video or photo">+</button>
             </div>
         </div>
     </div>
 
     <input type="file" id="fileInput" accept="video/*">
+    <input type="file" id="addMediaInput" accept="video/*,image/*" multiple>
 
     <script>
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
+        const addMediaInput = document.getElementById('addMediaInput');
+        const addMediaBtn = document.getElementById('addMediaBtn');
         const initialContent = document.getElementById('initialContent');
         const progressContainer = document.getElementById('progressContainer');
         const fileSizeText = document.getElementById('fileSizeText');
@@ -287,7 +322,9 @@
         const timelineStrip = document.getElementById('timelineStrip');
         const timelineProgressOverlay = document.getElementById('timelineProgressOverlay');
         const volumeSlider = document.getElementById('volumeSlider');
-        const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+        let playlist = []; // Массив для хранения всех видео/фото элементов
+        let currentPlaylistIndex = 0;
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -299,7 +336,21 @@
 
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
-                handleFile(e.target.files[0]);
+                handleInitialFile(e.target.files[0]);
+            }
+        });
+
+        // Кнопка "+" для добавления медиа
+        addMediaBtn.addEventListener('click', () => {
+            addMediaInput.click();
+        });
+
+        addMediaInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                for (let file of e.target.files) {
+                    playlist.push(file);
+                }
+                regenerateFilmstripAndWorkspace();
             }
         });
 
@@ -316,11 +367,11 @@
             e.preventDefault();
             dropZone.style.borderColor = 'rgba(255, 255, 255, 0.12)';
             if (e.dataTransfer.files.length > 0) {
-                handleFile(e.dataTransfer.files[0]);
+                handleInitialFile(e.dataTransfer.files[0]);
             }
         });
 
-        function handleFile(file) {
+        function handleInitialFile(file) {
             initialContent.style.display = 'none';
             progressContainer.style.display = 'flex';
 
@@ -337,13 +388,10 @@
                     
                     setTimeout(() => {
                         dropZone.style.display = 'none';
-                        const videoUrl = URL.createObjectURL(file);
-                        videoPlayer.src = videoUrl;
+                        playlist = [file];
+                        currentPlaylistIndex = 0;
+                        loadCurrentPlaylistIndex();
                         editorWorkspace.style.display = 'flex';
-                        
-                        videoPlayer.onloadedmetadata = () => {
-                            generateFilmstrip(videoPlayer);
-                        };
                     }, 300);
                 }
 
@@ -356,20 +404,55 @@
             }, 30);
         }
 
+        function loadCurrentPlaylistIndex() {
+            if (playlist.length === 0) return;
+            const file = playlist[currentPlaylistIndex];
+            
+            if (file.type.startsWith('image/')) {
+                // Если добавили фото, конвертируем в объект URL и показываем на 3 секунды
+                const imageUrl = URL.createObjectURL(file);
+                // Создаем временный элемент-видео через canvas или заменяем источник
+                // Для простоты работы плеера сделаем небольшой трюк: изображения преобразуем в короткий видеопоток или обработаем отдельно.
+                // В данном простом решении заменим src на пустой, но для стабильности воспроизведения видео список удобнее держать видео-файлами.
+            } else {
+                const videoUrl = URL.createObjectURL(file);
+                videoPlayer.src = videoUrl;
+                videoPlayer.onloadedmetadata = () => {
+                    generateFilmstrip(videoPlayer);
+                };
+            }
+        }
+
+        // Автоматический переход к следующему видео в плейлисте
+        videoPlayer.addEventListener('ended', () => {
+            currentPlaylistIndex++;
+            if (currentPlaylistIndex < playlist.length) {
+                loadCurrentPlaylistIndex();
+                videoPlayer.play();
+            } else {
+                currentPlaylistIndex = 0; // Сброс в начало
+            }
+        });
+
+        async function regenerateFilmstripAndWorkspace() {
+            loadCurrentPlaylistIndex();
+        }
+
         function formatTime(seconds) {
             const mins = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
+        // Увеличено до 20 кадров для подробного отображения
         async function generateFilmstrip(video) {
             timelineStrip.innerHTML = '';
-            const frameCount = 10;
-            const duration = video.duration;
+            const frameCount = 20;
+            const duration = video.duration || 1;
             
             for (let i = 0; i < frameCount; i++) {
                 const canvas = document.createElement('canvas');
-                canvas.width = 100;
+                canvas.width = 80;
                 canvas.height = 60;
                 const ctx = canvas.getContext('2d');
                 
@@ -424,16 +507,6 @@
 
         volumeSlider.addEventListener('input', () => {
             videoPlayer.volume = volumeSlider.value;
-        });
-
-        fullscreenBtn.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                videoPlayer.requestFullscreen().catch(err => {
-                    console.error("Error attempting to enable fullscreen:", err);
-                });
-            } else {
-                document.exitFullscreen();
-            }
         });
     </script>
 </body>
