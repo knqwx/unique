@@ -246,8 +246,8 @@
 
     <!-- Рабочая область плеера -->
     <div class="editor-workspace" id="editorWorkspace">
-        <!-- Добавлены атрибуты для отключения встроенного меню и трех точек -->
-        <video id="videoPlayer" controlslist="nodownload" disablepictureinpicture></video>
+        <!-- Добавлен параметр noplaybackrate для полного скрытия точек и меню скорости -->
+        <video id="videoPlayer" controlslist="nodownload noplaybackrate" disablepictureinpicture></video>
         <div class="player-controls">
             <div class="controls-top">
                 <div class="controls-left">
@@ -289,7 +289,6 @@
         const volumeSlider = document.getElementById('volumeSlider');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
 
-        // Отключаем стандартное контекстное меню по ПКМ на видео
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
 
         dropZone.addEventListener('click', () => {
