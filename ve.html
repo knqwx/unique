@@ -94,10 +94,9 @@
             max-width: 960px;
         }
 
-        /* Увеличенный видеоплеер */
         video {
             width: 100%;
-            max-height: 540px;
+            max-height: 500px;
             background-color: #000000;
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -108,28 +107,34 @@
         .player-controls {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             width: 100%;
             background-color: #14161b;
-            padding: 14px 18px;
-            border-radius: 10px;
+            padding: 16px;
+            border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-sizing: border-box;
         }
 
-        .controls-row {
+        .controls-top {
             display: flex;
             align-items: center;
-            gap: 15px;
+            justify-content: space-between;
+        }
+
+        .controls-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
         /* Кнопка с символами */
         .btn-control {
             background-color: #262a33;
             color: #e2e8f0;
-            width: 40px;
-            height: 40px;
-            font-size: 1rem;
+            width: 38px;
+            height: 38px;
+            font-size: 0.9rem;
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 8px;
             cursor: pointer;
@@ -145,31 +150,59 @@
             color: #ffffff;
         }
 
-        /* Полоса перемотки (таймлайн видео) */
-        .seek-bar {
-            flex-grow: 1;
-            -webkit-appearance: none;
-            appearance: none;
-            height: 6px;
-            background: #262a33;
-            border-radius: 3px;
-            outline: none;
+        /* Счетчик времени (просмотрено / всего) */
+        .time-display {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            font-variant-numeric: tabular-nums;
+            font-weight: 500;
+        }
+
+        /* Кадровая полоса перемотки (Timeline / Filmstrip) */
+        .timeline-container {
+            position: relative;
+            width: 100%;
+            height: 50px;
+            background-color: #0f1115;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .timeline-strip {
+            display: flex;
+            width: 100%;
+            height: 100%;
             cursor: pointer;
         }
 
-        .seek-bar::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #3b82f6;
-            cursor: pointer;
-            transition: transform 0.1s;
+        .timeline-strip canvas {
+            height: 100%;
+            flex: 1;
+            object-fit: cover;
+            border-right: 1px solid rgba(0, 0, 0, 0.3);
         }
 
-        .seek-bar::-webkit-slider-thumb:hover {
-            transform: scale(1.2);
+        /* Ползунок поверх кадров */
+        .timeline-progress-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0%;
+            background-color: rgba(59, 130, 246, 0.25);
+            border-right: 2px solid #3b82f6;
+            pointer-events: none;
+        }
+
+        .timeline-range-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
         }
 
         #fileInput {
@@ -198,9 +231,18 @@
     <div class="editor-workspace" id="editorWorkspace">
         <video id="videoPlayer"></video>
         <div class="player-controls">
-            <div class="controls-row">
-                <button class="btn-control" id="playPauseBtn">▶</button>
-                <input type="range" class="seek-bar" id="seekBar" value="0" min="0" max="100" step="0.1">
+            <div class="controls-top">
+                <div class="controls-left">
+                    <button class="btn-control" id="playPauseBtn">▶</button>
+                    <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
+                </div>
+            </div>
+            
+            <!-- Полоса с кадрами -->
+            <div class="timeline-container" id="timelineContainer">
+                <div class="timeline-strip" id="timelineStrip"></div>
+                <div class="timeline-progress-overlay" id="timelineProgressOverlay"></div>
+                <input type="range" class="timeline-range-input" id="seekBar" value="0" min="0" max="100" step="0.1">
             </div>
         </div>
     </div>
@@ -220,6 +262,9 @@
         const videoPlayer = document.getElementById('videoPlayer');
         const playPauseBtn = document.getElementById('playPauseBtn');
         const seekBar = document.getElementById('seekBar');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const timelineStrip = document.getElementById('timelineStrip');
+        const timelineProgressOverlay = document.getElementById('timelineProgressOverlay');
 
         dropZone.addEventListener('click', () => {
             if (progressContainer.style.display !== 'flex' && dropZone.style.display !== 'none') {
@@ -267,8 +312,14 @@
                     
                     setTimeout(() => {
                         dropZone.style.display = 'none';
-                        videoPlayer.src = URL.createObjectURL(file);
+                        const videoUrl = URL.createObjectURL(file);
+                        videoPlayer.src = videoUrl;
                         editorWorkspace.style.display = 'flex';
+                        
+                        // Генерируем кадры для таймлайна после загрузки метаданных
+                        videoPlayer.onloadedmetadata = () => {
+                            generateFilmstrip(videoPlayer);
+                        };
                     }, 300);
                 }
 
@@ -281,7 +332,45 @@
             }, 30);
         }
 
-        // Логика кнопки Воспроизведение / Пауза (символы)
+        // Форматирование секунд в вид MM:SS
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Генерация кадров (филмстрипа) для таймлайна
+        async function generateFilmstrip(video) {
+            timelineStrip.innerHTML = '';
+            const frameCount = 10; // Количество превью-кадров на полосе
+            const duration = video.duration;
+            
+            for (let i = 0; i < frameCount; i++) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 100;
+                canvas.height = 60;
+                const ctx = canvas.getContext('2d');
+                
+                // Переходим к нужному моменту времени для захвата кадра
+                video.currentTime = (duration / frameCount) * i;
+                
+                // Ждем пока кадр отрисуется
+                await new Promise(resolve => {
+                    const seekHandler = () => {
+                        video.removeEventListener('seeked', seekHandler);
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        resolve();
+                    };
+                    video.addEventListener('seeked', seekHandler);
+                });
+                
+                timelineStrip.appendChild(canvas);
+            }
+            // Возвращаем видео в начало
+            video.currentTime = 0;
+        }
+
+        // Кнопка Воспроизведение / Пауза
         playPauseBtn.addEventListener('click', () => {
             if (videoPlayer.paused) {
                 videoPlayer.play();
@@ -292,26 +381,28 @@
             }
         });
 
-        videoPlayer.addEventListener('pause', () => {
-            playPauseBtn.textContent = '▶';
-        });
-        videoPlayer.addEventListener('play', () => {
-            playPauseBtn.textContent = '❚❚';
-        });
+        videoPlayer.addEventListener('pause', () => { playPauseBtn.textContent = '▶'; });
+        videoPlayer.addEventListener('play', () => { playPauseBtn.textContent = '❚❚'; });
 
-        // Обновление шкалы перемотки по мере воспроизведения видео
+        // Обновление времени и прогресса таймлайна
         videoPlayer.addEventListener('timeupdate', () => {
             if (!isNaN(videoPlayer.duration)) {
-                const percent = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+                const current = videoPlayer.currentTime;
+                const duration = videoPlayer.duration;
+                const percent = (current / duration) * 100;
+                
                 seekBar.value = percent;
+                timelineProgressOverlay.style.width = `${percent}%`;
+                timeDisplay.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
             }
         });
 
-        // Перемотка видео при перемещении ползунка
+        // Перемотка при движении ползунка
         seekBar.addEventListener('input', () => {
             if (!isNaN(videoPlayer.duration)) {
                 const time = (seekBar.value / 100) * videoPlayer.duration;
                 videoPlayer.currentTime = time;
+                timelineProgressOverlay.style.width = `${seekBar.value}%`;
             }
         });
     </script>
