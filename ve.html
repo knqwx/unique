@@ -223,7 +223,6 @@
             display: flex;
             width: 100%;
             height: 100%;
-            cursor: pointer;
         }
 
         .timeline-clip {
@@ -232,11 +231,12 @@
             border-right: 2px solid #0f1115;
             box-sizing: border-box;
             position: relative;
-            transition: border-color 0.15s ease;
+            cursor: pointer;
         }
 
         .timeline-clip.selected {
-            border: 2px solid #ffffff;
+            outline: 2px solid #ffffff;
+            outline-offset: -2px;
             z-index: 3;
         }
 
@@ -257,17 +257,6 @@
             border-right: 2px solid #3b82f6;
             pointer-events: none;
             z-index: 4;
-        }
-
-        .timeline-range-input {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
-            z-index: 5;
         }
 
         .btn-add-media {
@@ -336,7 +325,6 @@
                 <div class="timeline-container" id="timelineContainer">
                     <div class="timeline-strip" id="timelineStrip"></div>
                     <div class="timeline-progress-overlay" id="timelineProgressOverlay"></div>
-                    <input type="range" class="timeline-range-input" id="seekBar" value="0" min="0" max="100" step="0.1">
                 </div>
                 <button class="btn-add-media" id="addMediaBtn" title="Add video">+</button>
             </div>
@@ -363,7 +351,6 @@
         const videoB = document.getElementById('videoPlayerB');
         const metaVideo = document.getElementById('metaVideo');
         const playPauseBtn = document.getElementById('playPauseBtn');
-        const seekBar = document.getElementById('seekBar');
         const timeDisplay = document.getElementById('timeDisplay');
         const timelineStrip = document.getElementById('timelineStrip');
         const timelineProgressOverlay = document.getElementById('timelineProgressOverlay');
@@ -383,14 +370,13 @@
         videoB.addEventListener('contextmenu', (e) => e.preventDefault());
         timelineContainer.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        // Правый клик по таймлайну меняет время видео
+        // ПКМ (правый клик) на таймлайне — меняет время видео
         timelineContainer.addEventListener('mousedown', (e) => {
             if (e.button === 2 && totalDuration > 0) {
                 const rect = timelineContainer.getBoundingClientRect();
                 const clickX = e.clientX - rect.left;
                 const percent = Math.max(0, Math.min(1, clickX / rect.width));
                 
-                seekBar.value = percent * 100;
                 updateTimeFromSeek(percent * 100);
             }
         });
@@ -546,16 +532,15 @@
             }
 
             const percent = (globalCurrent / totalDuration) * 100;
-            seekBar.value = percent;
             timelineProgressOverlay.style.width = `${percent}%`;
             timeDisplay.textContent = `${formatTime(globalCurrent)} / ${formatTime(totalDuration)}`;
         });
 
-        function updateTimeFromSeek(seekBarValue) {
-            const globalTargetTime = (seekBarValue / 100) * totalDuration;
+        function updateTimeFromSeek(percent) {
+            const globalTargetTime = (percent / 100) * totalDuration;
             const info = getActiveVideoInfo(globalTargetTime);
 
-            timelineProgressOverlay.style.width = `${seekBarValue}%`;
+            timelineProgressOverlay.style.width = `${percent}%`;
             timeDisplay.textContent = `${formatTime(globalTargetTime)} / ${formatTime(totalDuration)}`;
 
             if (info.index !== currentPlayingIndex) {
@@ -571,16 +556,6 @@
                 activeVideo.currentTime = info.localTime;
             }
         }
-
-        seekBar.addEventListener('input', () => {
-            if (totalDuration === 0) return;
-            isChangingTime = true;
-            updateTimeFromSeek(seekBar.value);
-        });
-
-        seekBar.addEventListener('change', () => {
-            isChangingTime = false;
-        });
 
         function formatTime(seconds) {
             const mins = Math.floor(seconds / 60);
@@ -602,7 +577,7 @@
                     clipDiv.classList.add('selected');
                 }
 
-                // Левый клик по куску видео выбирает его
+                // ЛКМ (левый клик) выбирает кусок видео и ставит белую обводку
                 clipDiv.addEventListener('mousedown', (e) => {
                     if (e.button === 0) {
                         document.querySelectorAll('.timeline-clip').forEach(c => c.classList.remove('selected'));
@@ -641,7 +616,6 @@
                 }
                 timelineStrip.appendChild(clipDiv);
             }
-            metaVideo.src = '';
         }
 
         playPauseBtn.addEventListener('click', () => {
