@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unique - Video Editor</title>
+    <style>
+        body {
+            background-color: #1a1d24;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .upload-container {
+            border: 2px dashed rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 40px 60px;
+            text-align: center;
+            background-color: #14161b;
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        .upload-container:hover {
+            border-color: rgba(255, 255, 255, 0.25);
+            background-color: #181b21;
+        }
+
+        .upload-text {
+            font-size: 1.1rem;
+            color: #94a3b8;
+            margin: 0;
+            font-weight: 500;
+        }
+
+        /* Скрываем стандартный инпут выбора файла */
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="upload-container" id="dropZone">
+        <p class="upload-text">Drag or choose files</p>
+        <input type="file" id="fileInput" multiple>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        // Клик по блоку вызывает выбор файла
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Обработка выбора файлов через диалоговое окно
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length > 0) {
+                console.log("Selected files:", files);
+            }
+        });
+
+        // Поддержка Drag and Drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#3b82f6';
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                console.log("Dropped files:", files);
+            }
+        });
+
+        console.log("Video editor workspace loaded.");
+    </script>
+</body>
+</html>
