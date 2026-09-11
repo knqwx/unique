@@ -815,7 +815,7 @@
             }
         }
 
-        // Высококачественный и быстрый экспорт в фоновом режиме (без просмотра видео)
+        // Высокоскоростной экспорт в фоне (без сидения и ожидания воспроизведения)
         exportBtn.addEventListener('click', async () => {
             if (!uploadedFile) return;
 
@@ -833,15 +833,13 @@
                 exportCanvas.height = vidHeight;
                 const ctx = exportCanvas.getContext('2d');
 
-                // Потоки записи с максимальным битрейтом 20 Mbps для отличного качества
                 const canvasStream = exportCanvas.captureStream(30);
                 let exportAudioCtx = null;
-                let exportSourceNode = null;
                 let exportGainNode = null;
 
                 if (!isImage) {
                     exportAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    exportSourceNode = exportAudioCtx.createMediaElementSource(videoPlayer);
+                    const exportSourceNode = exportAudioCtx.createMediaElementSource(videoPlayer);
                     exportGainNode = exportAudioCtx.createGain();
                     const dest = exportAudioCtx.createMediaStreamDestination();
 
@@ -858,7 +856,7 @@
 
                 const options = { 
                     mimeType: 'video/webm; codecs=vp9,opus',
-                    videoBitsPerSecond: 20000000 // 20 Mbps (высокое качество)
+                    videoBitsPerSecond: 20000000 
                 };
                 if (!MediaRecorder.isTypeSupported(options.mimeType)) {
                     options.mimeType = 'video/webm';
@@ -911,45 +909,35 @@
                     const frameDuration = 1 / 30;
                     const totalDuration = videoDuration / customPlaybackSpeed;
 
-                    const renderImageStep = () => {
-                        if (renderTime <= totalDuration) {
-                            ctx.clearRect(0, 0, vidWidth, vidHeight);
-                            ctx.drawImage(imagePlayer, 0, 0, vidWidth, vidHeight);
-                            drawTextLayers();
-                            
-                            updateImageUI(renderTime * customPlaybackSpeed);
-                            renderTime += frameDuration;
-                            setTimeout(renderImageStep, 5); // Быстрый рендер картинок
-                        } else {
-                            mediaRecorder.stop();
-                        }
-                    };
-                    renderImageStep();
+                    while (renderTime <= totalDuration) {
+                        ctx.clearRect(0, 0, vidWidth, vidHeight);
+                        ctx.drawImage(imagePlayer, 0, 0, vidWidth, vidHeight);
+                        drawTextLayers();
+                        renderTime += frameDuration;
+                    }
+                    mediaRecorder.stop();
 
                 } else {
-                    // Рендерим видео кадр за кадром в фоне без проигрывания на экран
+                    // Асинхронная быстрая раскадровка без ожидания отрисовки UI
                     videoPlayer.pause();
                     let currentTime = 0;
-                    const step = 1 / 30 * customPlaybackSpeed; // Шаг кадров с учетом скорости
+                    const step = (1 / 30) * customPlaybackSpeed;
                     const duration = videoDuration;
 
-                    const processNextFrame = async () => {
-                        if (currentTime < duration) {
-                            videoPlayer.currentTime = currentTime;
-                            await new Promise(r => videoPlayer.onseeked = r);
+                    while (currentTime < duration) {
+                        videoPlayer.currentTime = currentTime;
+                        await new Promise(r => {
+                            videoPlayer.onseeked = r;
+                            setTimeout(r, 50); // страховка от зависания событий seeked
+                        });
 
-                            ctx.clearRect(0, 0, vidWidth, vidHeight);
-                            ctx.drawImage(videoPlayer, 0, 0, vidWidth, vidHeight);
-                            drawTextLayers();
+                        ctx.clearRect(0, 0, vidWidth, vidHeight);
+                        ctx.drawImage(videoPlayer, 0, 0, vidWidth, vidHeight);
+                        drawTextLayers();
 
-                            currentTime += step;
-                            setTimeout(processNextFrame, 0); // Максимальная скорость процессора
-                        } else {
-                            mediaRecorder.stop();
-                        }
-                    };
-
-                    processNextFrame();
+                        currentTime += step;
+                    }
+                    mediaRecorder.stop();
                 }
 
             } catch (err) {
