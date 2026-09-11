@@ -126,54 +126,28 @@
             gap: 8px;
         }
 
-        .speed-slider-container {
+        .speed-input-container {
             display: flex;
             align-items: center;
             justify-content: space-between;
             background-color: #1a1d24;
-            padding: 8px 10px;
+            padding: 8px 12px;
             border-radius: 6px;
             border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
-        /* Кастомный слайдер скорости */
-        .custom-slider {
-            position: relative;
-            width: 90px;
-            height: 6px;
-            background: #262a33;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-
-        .custom-slider-fill {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            background: #3b82f6;
-            border-radius: 3px;
-            pointer-events: none;
-        }
-
-        .custom-slider-thumb {
-            position: absolute;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #3b82f6;
-            pointer-events: none;
+        .speed-input-label {
+            font-size: 0.85rem;
+            color: #94a3b8;
         }
 
         .speed-input {
             background: transparent;
             border: none;
             color: #3b82f6;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             font-weight: 600;
-            width: 60px;
+            width: 90px;
             outline: none;
             text-align: right;
             font-variant-numeric: tabular-nums;
@@ -403,13 +377,10 @@
             <div class="sidebar-top">
                 <div class="speed-control-group">
                     <div class="sidebar-title">Playback Speed</div>
-                    <div class="speed-slider-container">
-                        <!-- Точный кастомный слайдер скорости с шагом 0.01 (диапазон от 0.1 до 5) -->
-                        <div class="custom-slider" id="speedSlider">
-                            <div class="custom-slider-fill" id="speedFill" style="width: 19%;"></div>
-                            <div class="custom-slider-thumb" id="speedThumb" style="left: 19%;"></div>
-                        </div>
-                        <input type="text" class="speed-input" id="speedInput" value="1.00x">
+                    <div class="speed-input-container">
+                        <span class="speed-input-label">Multiplier</span>
+                        <!-- Поле для ввода любой скорости без каких-либо лимитов -->
+                        <input type="text" class="speed-input" id="speedInput" value="1">
                     </div>
                 </div>
             </div>
@@ -441,12 +412,7 @@
         const timelineContainer = document.getElementById('timelineContainer');
         const volumeSlider = document.getElementById('volumeSlider');
 
-        // Элементы кастомного слайдера скорости
-        const speedSlider = document.getElementById('speedSlider');
-        const speedFill = document.getElementById('speedFill');
-        const speedThumb = document.getElementById('speedThumb');
         const speedInput = document.getElementById('speedInput');
-        
         const exportBtn = document.getElementById('exportBtn');
 
         let videoFile = null;
@@ -549,26 +515,10 @@
             playPauseBtn.textContent = '▶';
         });
 
-        // Управление скоростью (без лимитов при вводе)
-        const minSpeed = 0.1;
-        const maxSpeed = 5.0; // Максимум для ползунка, но вручную можно вписать любое число
-
-        function setPlaybackSpeed(speed, updateSlider = true) {
+        // Установка произвольной скорости без ограничений
+        function setPlaybackSpeed(speed) {
             if (isNaN(speed) || speed <= 0) return;
-            // Округляем до сотых (шаг 0.01)
-            speed = Math.round(speed * 100) / 100;
-
             videoPlayer.playbackRate = speed;
-            speedInput.value = speed.toFixed(2) + 'x';
-
-            if (updateSlider) {
-                let ratio = (speed - minSpeed) / (maxSpeed - minSpeed);
-                if (ratio < 0) ratio = 0;
-                if (ratio > 1) ratio = 1;
-                const percent = ratio * 100;
-                speedFill.style.width = `${percent}%`;
-                speedThumb.style.left = `${percent}%`;
-            }
 
             if (videoDuration > 0) {
                 const current = videoPlayer.currentTime;
@@ -576,42 +526,13 @@
             }
         }
 
-        let isDraggingSpeed = false;
-
-        speedSlider.addEventListener('mousedown', (e) => {
-            isDraggingSpeed = true;
-            updateSpeedFromMouse(e);
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (isDraggingSpeed) {
-                updateSpeedFromMouse(e);
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            isDraggingSpeed = false;
-        });
-
-        function updateSpeedFromMouse(e) {
-            const rect = speedSlider.getBoundingClientRect();
-            let offsetX = e.clientX - rect.left;
-            if (offsetX < 0) offsetX = 0;
-            if (offsetX > rect.width) offsetX = rect.width;
-
-            const ratio = offsetX / rect.width;
-            const speed = minSpeed + ratio * (maxSpeed - minSpeed);
-            setPlaybackSpeed(speed, true);
-        }
-
-        speedInput.addEventListener('focus', () => {
-            speedInput.value = videoPlayer.playbackRate.toFixed(2);
-        });
-
         speedInput.addEventListener('blur', () => {
-            let val = parseFloat(speedInput.value);
-            if (isNaN(val) || val <= 0) val = 1;
-            setPlaybackSpeed(val, true);
+            let val = parseFloat(speedInput.value.replace(',', '.'));
+            if (isNaN(val) || val <= 0) {
+                val = 1;
+                speedInput.value = '1';
+            }
+            setPlaybackSpeed(val);
         });
 
         speedInput.addEventListener('keydown', (e) => {
