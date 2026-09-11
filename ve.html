@@ -402,7 +402,6 @@
         let videoDuration = 0;
         let customPlaybackSpeed = 1;
         
-        // Настройка усиления звука через AudioContext (позволяет ставить громкость > 100)
         let audioCtx = null;
         let gainNode = null;
         let sourceNode = null;
@@ -517,12 +516,9 @@
             playPauseBtn.textContent = '▶';
         });
 
-        // Плавная скорость без дерганья (даже для < 0.07 через ограничения браузера)
         function setPlaybackSpeed(speed) {
             if (isNaN(speed) || speed <= 0) return;
             customPlaybackSpeed = speed;
-
-            // Нативные возможности браузера до 0.063, но поддерживаем бесшовно через минимальный лимит
             videoPlayer.playbackRate = Math.max(0.063, Math.min(16, speed));
 
             if (videoDuration > 0) {
@@ -546,11 +542,14 @@
             }
         });
 
-        // Функция установки громкости с усилением выше 100%
+        // Установка громкости с жестким лимитом максимум до 300
         function setVolume(val) {
             if (isNaN(val) || val < 0) val = 100;
-            // Усиление: 100 = 1.0, 200 = 2.0 и т.д.
+            if (val > 300) val = 300; // Безопасный лимит
+
+            volumeInput.value = val;
             const gainValue = val / 100;
+
             if (gainNode) {
                 gainNode.gain.value = gainValue;
             } else {
@@ -560,10 +559,6 @@
 
         volumeInput.addEventListener('blur', () => {
             let val = parseFloat(volumeInput.value.replace(',', '.'));
-            if (isNaN(val) || val < 0) {
-                val = 100;
-                volumeInput.value = '100';
-            }
             setVolume(val);
         });
 
@@ -573,7 +568,6 @@
             }
         });
 
-        // ЛКМ — выбор клипа на таймлайне
         timelineContainer.addEventListener('mousedown', (e) => {
             if (e.button === 0) {
                 timelineContainer.classList.add('active');
@@ -586,7 +580,6 @@
             }
         });
 
-        // ПКМ — перемотка
         timelineContainer.addEventListener('mousedown', (e) => {
             if (e.button === 2) {
                 if (videoDuration === 0) return;
@@ -611,7 +604,6 @@
             }
         });
 
-        // Форматирование времени с поддержкой часов (ЧЧ:ММ:СС если видео больше часа)
         function formatTime(seconds) {
             const hrs = Math.floor(seconds / 3600);
             const mins = Math.floor((seconds % 3600) / 60);
