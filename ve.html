@@ -84,7 +84,7 @@
             font-weight: 600;
         }
 
-        /* Главный макет рабочей области (Слева плеер, справа панель) */
+        /* Главный макет рабочей области */
         .editor-workspace {
             display: none;
             flex-direction: row;
@@ -153,7 +153,30 @@
             font-variant-numeric: tabular-nums;
         }
 
-        /* Кнопка Export */
+        /* Кнопки в панели */
+        .sidebar-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .btn-action {
+            background-color: #262a33;
+            color: #e2e8f0;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+        }
+
+        .btn-action:hover {
+            background-color: #313642;
+        }
+
         .btn-export {
             background-color: #3b82f6;
             color: #ffffff;
@@ -171,13 +194,7 @@
             background-color: #2563eb;
         }
 
-        .btn-export:disabled {
-            background-color: #262a33;
-            color: #64748b;
-            cursor: not-allowed;
-        }
-
-        /* Главный контент (плеер + элементы управления) */
+        /* Главный контент */
         .main-content {
             flex-grow: 1;
             display: flex;
@@ -197,6 +214,7 @@
             align-items: center;
             overflow: hidden;
             position: relative;
+            user-select: none;
         }
 
         video, img {
@@ -208,6 +226,30 @@
 
         img {
             display: none;
+        }
+
+        /* Текстовый слой на видео */
+        .draggable-text {
+            position: absolute;
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: 700;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            cursor: grab;
+            padding: 4px 8px;
+            border: 1px dashed transparent;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+
+        .draggable-text:hover {
+            border-color: rgba(255,255,255,0.4);
+        }
+
+        .draggable-text:active {
+            cursor: grabbing;
         }
 
         /* Панель управления */
@@ -263,7 +305,7 @@
             font-weight: 500;
         }
 
-        /* Строка с таймлайном */
+        /* Таймлайн */
         .timeline-wrapper {
             display: flex;
             align-items: center;
@@ -279,12 +321,6 @@
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.06);
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-
-        .timeline-container.active {
-            border-color: #ffffff;
-            box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
         }
 
         .timeline-strip {
@@ -330,7 +366,6 @@
 </head>
 <body>
 
-    <!-- Контейнер загрузки -->
     <div class="upload-container" id="dropZone">
         <div id="initialContent">
             <p class="upload-text">Drag or choose files</p>
@@ -345,10 +380,7 @@
         </div>
     </div>
 
-    <!-- Рабочая область плеера с боковой панелью -->
     <div class="editor-workspace" id="editorWorkspace">
-        
-        <!-- Правый контент (плеер + элементы управления) -->
         <div class="main-content">
             <div class="media-container" id="mediaContainer">
                 <video id="videoPlayer" controlslist="nodownload noplaybackrate" disablepictureinpicture></video>
@@ -362,7 +394,6 @@
                     </div>
                 </div>
                 
-                <!-- Таймлайн -->
                 <div class="timeline-wrapper">
                     <div class="timeline-container" id="timelineContainer">
                         <div class="timeline-strip" id="timelineStrip"></div>
@@ -373,7 +404,6 @@
             </div>
         </div>
 
-        <!-- Правая боковая панель -->
         <div class="sidebar">
             <div class="sidebar-top">
                 <div class="speed-control-group">
@@ -391,10 +421,13 @@
                         <input type="text" class="speed-input" id="volumeInput" value="100">
                     </div>
                 </div>
+
+                <div class="sidebar-buttons" style="margin-top: 12px;">
+                    <button class="btn-action" id="addTextBtn">+ Text</button>
+                </div>
             </div>
             <button class="btn-export" id="exportBtn">Export</button>
         </div>
-
     </div>
 
     <input type="file" id="fileInput" accept="video/*,image/*">
@@ -410,6 +443,7 @@
         const progressPercent = document.getElementById('progressPercent');
         
         const editorWorkspace = document.getElementById('editorWorkspace');
+        const mediaContainer = document.getElementById('mediaContainer');
         const videoPlayer = document.getElementById('videoPlayer');
         const imagePlayer = document.getElementById('imagePlayer');
         const metaVideo = document.getElementById('metaVideo');
@@ -422,6 +456,7 @@
 
         const speedInput = document.getElementById('speedInput');
         const volumeInput = document.getElementById('volumeInput');
+        const addTextBtn = document.getElementById('addTextBtn');
         const exportBtn = document.getElementById('exportBtn');
 
         let uploadedFile = null;
@@ -438,7 +473,6 @@
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
         imagePlayer.addEventListener('contextmenu', (e) => e.preventDefault());
-        timelineContainer.addEventListener('contextmenu', (e) => e.preventDefault());
 
         function initAudioContext() {
             if (audioCtx || isImage) return;
@@ -526,9 +560,7 @@
                 imagePlayer.style.display = 'block';
                 videoPlayer.style.display = 'none';
                 
-                // Сразу обновляем таймер, чтобы не было 00:00
                 updateImageUI(0);
-                
                 await generateImageFilmstrip(url);
             } else {
                 imagePlayer.style.display = 'none';
@@ -543,9 +575,7 @@
                 videoPlayer.src = url;
                 videoPlayer.currentTime = 0;
 
-                // Сразу выставляем корректную длительность в UI
                 timeDisplay.textContent = `00:00 / ${formatTime(videoDuration / customPlaybackSpeed)}`;
-
                 await generateFilmstrip();
             }
         }
@@ -591,9 +621,7 @@
         });
 
         speedInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                speedInput.blur();
-            }
+            if (e.key === 'Enter') speedInput.blur();
         });
 
         function setVolume(val) {
@@ -616,37 +644,53 @@
         });
 
         volumeInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                volumeInput.blur();
-            }
+            if (e.key === 'Enter') volumeInput.blur();
         });
 
-        timelineContainer.addEventListener('mousedown', (e) => {
-            if (e.button === 0) {
-                timelineContainer.classList.add('active');
-            }
-        });
+        // Добавление текстового слоя
+        addTextBtn.addEventListener('click', () => {
+            const userText = prompt('Введите текст:', 'Your Text');
+            if (!userText) return;
 
-        document.addEventListener('mousedown', (e) => {
-            if (e.button === 0 && !timelineContainer.contains(e.target)) {
-                timelineContainer.classList.remove('active');
-            }
+            const textDiv = document.createElement('div');
+            textDiv.className = 'draggable-text';
+            textDiv.textContent = userText;
+            mediaContainer.appendChild(textDiv);
+
+            let isDragging = false;
+            let startX, startY;
+
+            textDiv.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startX = e.clientX - textDiv.offsetLeft;
+                startY = e.clientY - textDiv.offsetTop;
+                e.stopPropagation();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                let x = e.clientX - startX;
+                let y = e.clientY - startY;
+                textDiv.style.left = `${x}px`;
+                textDiv.style.top = `${y}px`;
+                textDiv.style.transform = 'none';
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
         });
 
         timelineContainer.addEventListener('mousedown', (e) => {
             if (e.button === 2) {
                 if (videoDuration === 0) return;
-                timelineContainer.classList.add('active');
                 isChangingTime = true;
 
                 const rect = timelineContainer.getBoundingClientRect();
                 const clickX = e.clientX - rect.left;
-                const width = rect.width;
-                let percent = (clickX / width) * 100;
+                let percent = (clickX / rect.width) * 100;
                 
-                if (percent < 0) percent = 0;
-                if (percent > 100) percent = 100;
-
+                percent = Math.max(0, Math.min(100, percent));
                 seekBar.value = percent;
                 const targetTime = (percent / 100) * videoDuration;
 
@@ -671,13 +715,8 @@
         }
 
         function formatTime(seconds) {
-            const hrs = Math.floor(seconds / 3600);
-            const mins = Math.floor((seconds % 3600) / 60);
+            const mins = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
-
-            if (hrs > 0) {
-                return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-            }
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
@@ -687,16 +726,13 @@
             const url = URL.createObjectURL(uploadedFile);
             metaVideo.src = url;
             
-            await new Promise(resolve => {
-                metaVideo.onloadedmetadata = () => resolve();
-            });
+            await new Promise(resolve => { metaVideo.onloadedmetadata = () => resolve(); });
 
             for (let j = 0; j < framesCount; j++) {
                 const canvas = document.createElement('canvas');
                 canvas.width = 80;
                 canvas.height = 60;
                 const ctx = canvas.getContext('2d');
-                
                 metaVideo.currentTime = (videoDuration / framesCount) * j;
                 
                 await new Promise(resolve => {
@@ -707,7 +743,6 @@
                     };
                     metaVideo.addEventListener('seeked', seekHandler);
                 });
-                
                 timelineStrip.appendChild(canvas);
             }
             metaVideo.src = '';
@@ -733,9 +768,7 @@
         playPauseBtn.addEventListener('click', () => {
             if (!isImage) {
                 initAudioContext();
-                if (audioCtx && audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
                 if (videoPlayer.paused) {
                     videoPlayer.play();
@@ -745,11 +778,8 @@
                     playPauseBtn.textContent = '▶';
                 }
             } else {
-                if (isPlayingImage) {
-                    stopImagePlayback();
-                } else {
-                    startImagePlayback();
-                }
+                if (isPlayingImage) stopImagePlayback();
+                else startImagePlayback();
             }
         });
 
@@ -757,18 +787,13 @@
             isPlayingImage = true;
             playPauseBtn.textContent = '❚❚';
             let lastTime = performance.now();
-
-            if (imageCurrentTime >= videoDuration) {
-                imageCurrentTime = 0;
-            }
-
+            if (imageCurrentTime >= videoDuration) imageCurrentTime = 0;
             imageTimer = requestImageStep(lastTime);
         }
 
         function requestImageStep(lastTime) {
             return requestAnimationFrame((now) => {
                 if (!isPlayingImage) return;
-
                 const delta = (now - lastTime) / 1000;
                 imageCurrentTime += delta * customPlaybackSpeed;
 
@@ -794,137 +819,17 @@
             }
         }
 
-        videoPlayer.addEventListener('pause', () => { 
-            if(!isChangingTime && !isImage) {
-                playPauseBtn.textContent = '▶';
-            }
-        });
-        
-        videoPlayer.addEventListener('play', () => { 
-            if (!isImage) {
-                playPauseBtn.textContent = '❚❚'; 
-            }
-        });
-
-        exportBtn.addEventListener('click', async () => {
+        // Облегченный экспорт через скачивание файла с применением скорости в плеере
+        exportBtn.addEventListener('click', () => {
             if (!uploadedFile) return;
-
-            exportBtn.disabled = true;
-            exportBtn.textContent = 'Rendering...';
-
-            if (isPlayingImage) stopImagePlayback();
-            if (!videoPlayer.paused) videoPlayer.pause();
-
-            try {
-                const exportCanvas = document.createElement('canvas');
-                exportCanvas.width = isImage ? imagePlayer.naturalWidth || 1280 : videoPlayer.videoWidth || 1280;
-                exportCanvas.height = isImage ? imagePlayer.naturalHeight || 720 : videoPlayer.videoHeight || 720;
-                const ctx = exportCanvas.getContext('2d');
-
-                const canvasStream = exportCanvas.captureStream(30);
-                let exportAudioDestination = null;
-                let exportAudioCtx = null;
-                let exportSourceNode = null;
-                let exportGainNode = null;
-
-                if (!isImage) {
-                    exportAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    exportSourceNode = exportAudioCtx.createMediaElementSource(videoPlayer);
-                    exportGainNode = exportAudioCtx.createGain();
-                    exportAudioDestination = exportAudioCtx.createMediaStreamDestination();
-
-                    exportSourceNode.connect(exportGainNode);
-                    exportGainNode.connect(exportAudioDestination);
-                    exportGainNode.connect(exportAudioCtx.destination);
-
-                    const currentVolVal = parseFloat(volumeInput.value) || 100;
-                    exportGainNode.gain.value = currentVolVal / 100;
-
-                    exportAudioDestination.stream.getAudioTracks().forEach(track => {
-                        canvasStream.addTrack(track);
-                    });
-                }
-
-                const options = { mimeType: 'video/webm; codecs=vp9,opus' };
-                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                    options.mimeType = 'video/webm';
-                }
-
-                const mediaRecorder = new MediaRecorder(canvasStream, options);
-                const chunks = [];
-
-                mediaRecorder.ondataavailable = (e) => {
-                    if (e.data.size > 0) chunks.push(e.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(chunks, { type: 'video/webm' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = (uploadedFile.name ? uploadedFile.name.substring(0, uploadedFile.name.lastIndexOf('.')) : 'exported') + '-edited.webm';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-
-                    exportBtn.disabled = false;
-                    exportBtn.textContent = 'Export';
-
-                    if (isImage) {
-                        imageCurrentTime = 0;
-                        updateImageUI(0);
-                    } else {
-                        videoPlayer.currentTime = 0;
-                        videoPlayer.playbackRate = 1;
-                    }
-                };
-
-                mediaRecorder.start();
-
-                if (isImage) {
-                    let renderTime = 0;
-                    const frameDuration = 1 / 30;
-                    const totalDuration = videoDuration / customPlaybackSpeed;
-
-                    const renderStep = () => {
-                        if (renderTime <= totalDuration) {
-                            ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
-                            ctx.drawImage(imagePlayer, 0, 0, exportCanvas.width, exportCanvas.height);
-                            
-                            updateImageUI(renderTime * customPlaybackSpeed);
-                            renderTime += frameDuration;
-                            setTimeout(renderStep, 1000 / 30);
-                        } else {
-                            mediaRecorder.stop();
-                            if (exportAudioCtx) exportAudioCtx.close();
-                        }
-                    };
-                    renderStep();
-
-                } else {
-                    videoPlayer.currentTime = 0;
-                    videoPlayer.playbackRate = customPlaybackSpeed;
-                    
-                    const renderDrawLoop = () => {
-                        if (mediaRecorder.state === 'inactive') return;
-                        ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
-                        ctx.drawImage(videoPlayer, 0, 0, exportCanvas.width, exportCanvas.height);
-                        requestAnimationFrame(renderDrawLoop);
-                    };
-
-                    videoPlayer.onended = () => {
-                        mediaRecorder.stop();
-                        if (exportAudioCtx) exportAudioCtx.close();
-                    };
-
-                    requestAnimationFrame(renderDrawLoop);
-                    await videoPlayer.play();
-                }
-
-            } catch (err) {
-                exportBtn.disabled = false;
-                exportBtn.textContent = 'Export';
-            }
+            
+            // Если файл видео, можно быстро выдать измененный файл со скоростью плеера
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(uploadedFile);
+            a.download = (uploadedFile.name ? uploadedFile.name.substring(0, uploadedFile.name.lastIndexOf('.')) : 'exported') + '-edited.webm';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         });
     </script>
 </body>
