@@ -114,6 +114,8 @@
 
         video, img {
             position: absolute;
+            max-width: none;
+            max-height: none;
             display: none;
             outline: none;
             cursor: grab;
@@ -158,7 +160,7 @@
     <div class="upload-wrapper" id="uploadWrapper">
         <div class="controls-row">
             <select class="resolution-selector" id="resolutionMode">
-                <option value="auto">Auto (Fit to Box)</option>
+                <option value="auto">Auto (Match Video Size)</option>
                 <option value="custom">Custom Size</option>
             </select>
 
@@ -191,11 +193,11 @@
         const customWidth = document.getElementById('customWidth');
         const customHeight = document.getElementById('customHeight');
         const workspace = document.getElementById('workspace');
+        const mediaBox = document.getElementById('mediaBox');
         const videoPlayer = document.getElementById('videoPlayer');
         const imagePlayer = document.getElementById('imagePlayer');
         const resetBtn = document.getElementById('resetBtn');
 
-        // Показываем/скрываем поля ввода в зависимости от режима
         resolutionMode.addEventListener('change', (e) => {
             if (e.target.value === 'custom') {
                 customInputsContainer.style.display = 'flex';
@@ -220,39 +222,43 @@
 
             const fileUrl = URL.createObjectURL(file);
             const isImage = file.type.startsWith('image/');
-            const activeMedia = isImage ? imagePlayer : videoPlayer;
-
             const mode = resolutionMode.value;
-
-            if (mode === 'auto') {
-                activeMedia.style.width = '';
-                activeMedia.style.height = '';
-                activeMedia.style.maxWidth = '100%';
-                activeMedia.style.maxHeight = '100%';
-                activeMedia.style.objectFit = 'contain';
-            } else {
-                // Кастомный размер из инпутов
-                const w = customWidth.value;
-                const h = customHeight.value;
-
-                activeMedia.style.maxWidth = 'none';
-                activeMedia.style.maxHeight = 'none';
-                activeMedia.style.objectFit = 'fill';
-
-                if (w) activeMedia.style.width = w + 'px';
-                if (h) activeMedia.style.height = h + 'px';
-            }
 
             if (isImage) {
                 imagePlayer.src = fileUrl;
                 imagePlayer.style.display = 'block';
                 videoPlayer.style.display = 'none';
+
+                imagePlayer.onload = () => {
+                    if (mode === 'auto') {
+                        mediaBox.style.width = imagePlayer.naturalWidth + 'px';
+                        mediaBox.style.height = imagePlayer.naturalHeight + 'px';
+                    } else {
+                        applyCustomSize();
+                    }
+                };
             } else {
                 videoPlayer.src = fileUrl;
                 videoPlayer.style.display = 'block';
                 imagePlayer.style.display = 'none';
+
+                videoPlayer.onloadedmetadata = () => {
+                    if (mode === 'auto') {
+                        mediaBox.style.width = videoPlayer.videoWidth + 'px';
+                        mediaBox.style.height = videoPlayer.videoHeight + 'px';
+                    } else {
+                        applyCustomSize();
+                    }
+                };
             }
         });
+
+        function applyCustomSize() {
+            const w = customWidth.value;
+            const h = customHeight.value;
+            if (w) mediaBox.style.width = w + 'px';
+            if (h) mediaBox.style.height = h + 'px';
+        }
 
         // Управление пробелом для видео
         document.addEventListener('keydown', (e) => {
