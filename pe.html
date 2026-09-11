@@ -7,9 +7,82 @@
             background-color: #1a1d24;
             margin: 0;
             height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        #fileInput {
+            display: none;
+        }
+        .upload-btn {
+            background-color: #14161b;
+            color: #94a3b8;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 10;
+        }
+        .upload-btn:hover {
+            color: #ffffff;
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        #previewCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: none;
         }
     </style>
 </head>
 <body>
+    <label class="upload-btn" id="btnLabel">
+        Choose File
+        <input type="file" id="fileInput" accept="image/*">
+    </label>
+
+    <canvas id="previewCanvas"></canvas>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const btnLabel = document.getElementById('btnLabel');
+        const canvas = document.getElementById('previewCanvas');
+        const ctx = canvas.getContext('2d');
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    btnLabel.style.display = 'none';
+                    canvas.style.display = 'block';
+
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+
+                    const hRatio = canvas.width / img.width;
+                    const vRatio = canvas.height / img.height;
+                    const ratio = Math.max(hRatio, vRatio);
+
+                    const centerShiftX = (canvas.width - img.width * ratio) / 2;
+                    const centerShiftY = (canvas.height - img.height * ratio) / 2;
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, img.width, img.height, centerShiftX, centerShiftY, img.width * ratio, img.height * ratio);
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        });
+    </script>
 </body>
 </html>
