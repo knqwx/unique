@@ -16,7 +16,6 @@
             align-items: center;
         }
 
-        /* Область перетаскивания */
         .upload-container {
             border: 2px dashed rgba(255, 255, 255, 0.12);
             border-radius: 16px;
@@ -46,7 +45,6 @@
             font-weight: 500;
         }
 
-        /* Секция загрузки */
         .progress-container {
             display: none;
             flex-direction: column;
@@ -84,7 +82,6 @@
             font-weight: 600;
         }
 
-        /* Главный макет рабочей области */
         .editor-workspace {
             display: none;
             flex-direction: row;
@@ -94,7 +91,6 @@
             height: 600px;
         }
 
-        /* Правая боковая панель */
         .sidebar {
             width: 220px;
             background-color: #14161b;
@@ -153,7 +149,6 @@
             font-variant-numeric: tabular-nums;
         }
 
-        /* Кнопки в панели */
         .sidebar-buttons {
             display: flex;
             flex-direction: column;
@@ -194,7 +189,12 @@
             background-color: #2563eb;
         }
 
-        /* Главный контент */
+        .btn-export:disabled {
+            background-color: #262a33;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+
         .main-content {
             flex-grow: 1;
             display: flex;
@@ -228,7 +228,6 @@
             display: none;
         }
 
-        /* Текстовый слой на видео */
         .draggable-text {
             position: absolute;
             color: #ffffff;
@@ -252,7 +251,6 @@
             cursor: grabbing;
         }
 
-        /* Панель управления */
         .player-controls {
             display: flex;
             flex-direction: column;
@@ -305,7 +303,6 @@
             font-weight: 500;
         }
 
-        /* Таймлайн */
         .timeline-wrapper {
             display: flex;
             align-items: center;
@@ -647,7 +644,6 @@
             if (e.key === 'Enter') volumeInput.blur();
         });
 
-        // Добавление текстового слоя
         addTextBtn.addEventListener('click', () => {
             const userText = prompt('Введите текст:', 'Your Text');
             if (!userText) return;
@@ -819,17 +815,140 @@
             }
         }
 
-        // Облегченный экспорт через скачивание файла с применением скорости в плеере
-        exportBtn.addEventListener('click', () => {
+        // Рендеринг и экспорт со всеми изменениями (скорость, громкость, текст)
+        exportBtn.addEventListener('click', async () => {
             if (!uploadedFile) return;
-            
-            // Если файл видео, можно быстро выдать измененный файл со скоростью плеера
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(uploadedFile);
-            a.download = (uploadedFile.name ? uploadedFile.name.substring(0, uploadedFile.name.lastIndexOf('.')) : 'exported') + '-edited.webm';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+
+            exportBtn.disabled = true;
+            exportBtn.textContent = 'Rendering...';
+
+            if (isPlayingImage) stopImagePlayback();
+            if (!videoPlayer.paused) videoPlayer.pause();
+
+            try {
+                const exportCanvas = document.createElement('canvas');
+                const vidWidth = isImage ? (imagePlayer.naturalWidth || 1280) : (videoPlayer.videoWidth || 1280);
+                const vidHeight = isImage ? (imagePlayer.naturalHeight || 720) : (videoPlayer.videoHeight || 720);
+                exportCanvas.width = vidWidth;
+                exportCanvas.height = vidHeight;
+                const ctx = exportCanvas.getContext('2d');
+
+                const canvasStream = exportCanvas.captureStream(30);
+                let exportAudioCtx = null;
+                let exportSourceNode = null;
+                let exportGainNode = null;
+
+                if (!isImage) {
+                    exportAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    exportSourceNode = exportAudioCtx.createMediaElementSource(videoPlayer);
+                    exportGainNode = exportAudioCtx.createGain();
+                    const dest = exportAudioCtx.createMediaStreamDestination();
+
+                    exportSourceNode.connect(exportGainNode);
+                    exportGainNode.connect(dest);
+                    
+                    const volVal = parseFloat(volumeInput.value) || 100;
+                    exportGainNode.gain.value = volVal / 100;
+
+                    dest.stream.getAudioTracks().forEach(track => {
+                        canvasStream.addTrack(track);
+                    });
+                }
+
+                const options = { mimeType: 'video/webm; codecs=vp9,opus' };
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    options.mimeType = 'video/webm';
+                }
+
+                const mediaRecorder = new MediaRecorder(canvasStream, options);
+                const chunks = [];
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) chunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = (uploadedFile.name ? uploadedFile.name.substring(0, uploadedFile.name.lastIndexOf('.')) : 'exported') + '-edited.webm';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+
+                    exportBtn.disabled = false;
+                    exportBtn.textContent = 'Export';
+                    if (exportAudioCtx) exportAudioCtx.close();
+                };
+
+                mediaRecorder.start();
+
+                // Функция отрисовки текста с экрана на холст
+                const drawTextLayers = () => {
+                    const textElements = mediaContainer.querySelectorAll('.draggable-text');
+                    const containerRect = mediaContainer.getBoundingClientRect();
+
+                    textElements.forEach(el => {
+                        const elRect = el.getBoundingClientRect();
+                        // Вычисляем координаты относительно плеера и масштабируем под реальное разрешение видео
+                        const x = (elRect.left - containerRect.left) * (vidWidth / containerRect.width);
+                        const y = (elRect.top - containerRect.top + 24) * (vidHeight / containerRect.height); // +24 под baseline шрифта
+
+                        ctx.font = '700 24px sans-serif';
+                        ctx.fillStyle = '#ffffff';
+                        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                        ctx.shadowBlur = 4;
+                        ctx.fillText(el.textContent, x, y);
+                        ctx.shadowBlur = 0; // сбрасываем тень
+                    });
+                };
+
+                if (isImage) {
+                    let renderTime = 0;
+                    const frameDuration = 1 / 30;
+                    const totalDuration = videoDuration / customPlaybackSpeed;
+
+                    const renderImageStep = () => {
+                        if (renderTime <= totalDuration) {
+                            ctx.clearRect(0, 0, vidWidth, vidHeight);
+                            ctx.drawImage(imagePlayer, 0, 0, vidWidth, vidHeight);
+                            drawTextLayers();
+                            
+                            updateImageUI(renderTime * customPlaybackSpeed);
+                            renderTime += frameDuration;
+                            setTimeout(renderImageStep, 1000 / 30);
+                        } else {
+                            mediaRecorder.stop();
+                        }
+                    };
+                    renderImageStep();
+
+                } else {
+                    videoPlayer.currentTime = 0;
+                    videoPlayer.playbackRate = customPlaybackSpeed;
+
+                    const renderVideoLoop = () => {
+                        if (mediaRecorder.state === 'inactive') return;
+                        ctx.clearRect(0, 0, vidWidth, vidHeight);
+                        ctx.drawImage(videoPlayer, 0, 0, vidWidth, vidHeight);
+                        drawTextLayers();
+                        requestAnimationFrame(renderVideoLoop);
+                    };
+
+                    videoPlayer.onended = () => {
+                        mediaRecorder.stop();
+                    };
+
+                    requestAnimationFrame(renderVideoLoop);
+                    await videoPlayer.play();
+                }
+
+            } catch (err) {
+                console.error(err);
+                exportBtn.disabled = false;
+                exportBtn.textContent = 'Export';
+            }
         });
     </script>
 </body>
