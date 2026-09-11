@@ -26,7 +26,13 @@
             gap: 10px;
         }
 
-        .resolution-selector {
+        .controls-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .resolution-selector, .custom-input {
             background-color: #14161b;
             color: #94a3b8;
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -34,14 +40,27 @@
             padding: 6px 12px;
             font-size: 0.85rem;
             font-weight: 600;
-            cursor: pointer;
             outline: none;
             transition: border-color 0.2s, color 0.2s;
         }
 
-        .resolution-selector:hover {
+        .resolution-selector {
+            cursor: pointer;
+        }
+
+        .resolution-selector:hover, .custom-input:focus {
             border-color: rgba(255, 255, 255, 0.2);
             color: #ffffff;
+        }
+
+        .custom-inputs-container {
+            display: none;
+            gap: 6px;
+        }
+
+        .custom-input {
+            width: 70px;
+            text-align: center;
         }
 
         .upload-container {
@@ -104,19 +123,6 @@
             cursor: grabbing;
         }
 
-        /* Классы для режимов отображения */
-        .mode-auto {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-
-        .mode-custom {
-            max-width: none;
-            max-height: none;
-            object-fit: none;
-        }
-
         .reset-btn {
             position: fixed;
             top: 20px;
@@ -150,10 +156,17 @@
     <button class="reset-btn" id="resetBtn">Reset Position</button>
 
     <div class="upload-wrapper" id="uploadWrapper">
-        <select class="resolution-selector" id="resolutionMode">
-            <option value="auto">Auto (Fit to Box)</option>
-            <option value="custom">Custom (Original Size)</option>
-        </select>
+        <div class="controls-row">
+            <select class="resolution-selector" id="resolutionMode">
+                <option value="auto">Auto (Fit to Box)</option>
+                <option value="custom">Custom Size</option>
+            </select>
+
+            <div class="custom-inputs-container" id="customInputsContainer">
+                <input type="number" class="custom-input" id="customWidth" placeholder="Width">
+                <input type="number" class="custom-input" id="customHeight" placeholder="Height">
+            </div>
+        </div>
 
         <div class="upload-container" id="dropZone">
             <p class="upload-text">Drag or choose files</p>
@@ -174,10 +187,22 @@
         const fileInput = document.getElementById('fileInput');
         const uploadWrapper = document.getElementById('uploadWrapper');
         const resolutionMode = document.getElementById('resolutionMode');
+        const customInputsContainer = document.getElementById('customInputsContainer');
+        const customWidth = document.getElementById('customWidth');
+        const customHeight = document.getElementById('customHeight');
         const workspace = document.getElementById('workspace');
         const videoPlayer = document.getElementById('videoPlayer');
         const imagePlayer = document.getElementById('imagePlayer');
         const resetBtn = document.getElementById('resetBtn');
+
+        // Показываем/скрываем поля ввода в зависимости от режима
+        resolutionMode.addEventListener('change', (e) => {
+            if (e.target.value === 'custom') {
+                customInputsContainer.style.display = 'flex';
+            } else {
+                customInputsContainer.style.display = 'none';
+            }
+        });
 
         dropZone.addEventListener('click', () => {
             fileInput.click();
@@ -197,9 +222,26 @@
             const isImage = file.type.startsWith('image/');
             const activeMedia = isImage ? imagePlayer : videoPlayer;
 
-            // Применяем выбранный режим разметки (auto / custom)
             const mode = resolutionMode.value;
-            activeMedia.className = mode === 'auto' ? 'mode-auto' : 'mode-custom';
+
+            if (mode === 'auto') {
+                activeMedia.style.width = '';
+                activeMedia.style.height = '';
+                activeMedia.style.maxWidth = '100%';
+                activeMedia.style.maxHeight = '100%';
+                activeMedia.style.objectFit = 'contain';
+            } else {
+                // Кастомный размер из инпутов
+                const w = customWidth.value;
+                const h = customHeight.value;
+
+                activeMedia.style.maxWidth = 'none';
+                activeMedia.style.maxHeight = 'none';
+                activeMedia.style.objectFit = 'fill';
+
+                if (w) activeMedia.style.width = w + 'px';
+                if (h) activeMedia.style.height = h + 'px';
+            }
 
             if (isImage) {
                 imagePlayer.src = fileUrl;
