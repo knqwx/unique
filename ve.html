@@ -207,7 +207,7 @@
             justify-content: space-between;
         }
 
-        .controls-left, .controls-right {
+        .controls-left {
             display: flex;
             align-items: center;
             gap: 12px;
@@ -239,27 +239,6 @@
             color: #94a3b8;
             font-variant-numeric: tabular-nums;
             font-weight: 500;
-        }
-
-        .volume-slider {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 90px;
-            height: 6px;
-            background: #262a33;
-            border-radius: 3px;
-            outline: none;
-            cursor: pointer;
-        }
-
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #3b82f6;
-            cursor: pointer;
         }
 
         /* Строка с таймлайном */
@@ -356,9 +335,6 @@
                         <button class="btn-control" id="playPauseBtn">▶</button>
                         <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
                     </div>
-                    <div class="controls-right">
-                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.01" value="1">
-                    </div>
                 </div>
                 
                 <!-- Таймлайн -->
@@ -380,6 +356,14 @@
                     <div class="speed-input-container">
                         <span class="speed-input-label">Speed</span>
                         <input type="text" class="speed-input" id="speedInput" value="1">
+                    </div>
+                </div>
+                
+                <div class="speed-control-group" style="margin-top: 12px;">
+                    <div class="sidebar-title">Audio Volume</div>
+                    <div class="speed-input-container">
+                        <span class="speed-input-label">Volume</span>
+                        <input type="text" class="speed-input" id="volumeInput" value="100">
                     </div>
                 </div>
             </div>
@@ -409,15 +393,17 @@
         const timelineStrip = document.getElementById('timelineStrip');
         const timelineProgressOverlay = document.getElementById('timelineProgressOverlay');
         const timelineContainer = document.getElementById('timelineContainer');
-        const volumeSlider = document.getElementById('volumeSlider');
 
         const speedInput = document.getElementById('speedInput');
+        const volumeInput = document.getElementById('volumeInput');
         const exportBtn = document.getElementById('exportBtn');
 
         let videoFile = null;
         let videoDuration = 0;
-        let customPlaybackSpeed = 1; // Реальная скорость видео
+        let customPlaybackSpeed = 1;
         let customTimer = null;
+        let virtualCurrentTime = 0;
+        let isCustomLooping = false;
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
         timelineContainer.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -493,6 +479,7 @@
 
             videoPlayer.src = url;
             videoPlayer.currentTime = 0;
+            virtualCurrentTime = 0;
 
             await generateFilmstrip();
         }
@@ -503,6 +490,9 @@
             if (isChangingTime || videoDuration === 0) return;
 
             const current = videoPlayer.currentTime;
+            if (!isCustomLooping) {
+                virtualCurrentTime = current;
+            }
             const percent = (current / videoDuration) * 100;
 
             seekBar.value = percent;
@@ -513,19 +503,21 @@
         videoPlayer.addEventListener('ended', () => {
             stopCustomSpeedLoop();
             videoPlayer.currentTime = 0;
+            virtualCurrentTime = 0;
             playPauseBtn.textContent = '▶';
         });
 
-        // Движок для поддержки любых скоростей (от 0.00001 до 100000+)
+        // Движок для работы с ультра-низкими и ультра-высокими скоростями
         function setPlaybackSpeed(speed) {
             if (isNaN(speed) || speed <= 0) return;
             customPlaybackSpeed = speed;
 
-            if (speed >= 0.06 && speed <= 16) {
+            if (speed >= 0.07 && speed <= 16) {
                 videoPlayer.playbackRate = speed;
                 stopCustomSpeedLoop();
             } else {
                 videoPlayer.playbackRate = 1;
+                virtualCurrentTime = videoPlayer.currentTime;
                 if (!videoPlayer.paused) {
                     startCustomSpeedLoop();
                 }
@@ -539,30 +531,41 @@
 
         function startCustomSpeedLoop() {
             stopCustomSpeedLoop();
-            if (customPlaybackSpeed >= 0.06 && customPlaybackSpeed <= 16) return;
+            if (customPlaybackSpeed >= 0.07 && customPlaybackSpeed <= 16) return;
 
             let lastTime = performance.now();
-            customTimer = requestAnimationFrame(function step(now) {
-                if (videoPlayer.paused || videoPlayer.ended) return;
+            isCustomLooping = true;
+
+            customTimer = function(now) {
+                if (!isCustomLooping || videoPlayer.paused || videoPlayer.ended) return;
 
                 const delta = (now - lastTime) / 1000;
                 lastTime = now;
 
-                let nextTime = videoPlayer.currentTime + delta * customPlaybackSpeed;
-                if (nextTime >= videoDuration) {
+                virtualCurrentTime += delta * customPlaybackSpeed;
+
+                if (virtualCurrentTime >= videoDuration) {
+                    virtualCurrentTime = videoDuration;
                     videoPlayer.currentTime = videoDuration;
                     videoPlayer.pause();
+                    stopCustomSpeedLoop();
                     return;
                 }
-                videoPlayer.currentTime = nextTime;
 
-                customTimer = requestAnimationFrame(step);
-            });
+                // Аккумулируем шаги для сверхмалых скоростей, чтобы движок не ломался
+                if (Math.abs(virtualCurrentTime - videoPlayer.currentTime) > 0.03 || customPlaybackSpeed >= 1) {
+                    videoPlayer.currentTime = virtualCurrentTime;
+                }
+
+                requestAnimationFrame(customTimer);
+            };
+
+            requestAnimationFrame(customTimer);
         }
 
         function stopCustomSpeedLoop() {
+            isCustomLooping = false;
             if (customTimer) {
-                cancelAnimationFrame(customTimer);
                 customTimer = null;
             }
         }
@@ -582,8 +585,21 @@
             }
         });
 
-        volumeSlider.addEventListener('input', () => {
-            videoPlayer.volume = parseFloat(volumeSlider.value);
+        // Управление громкостью (дефолт 100)
+        volumeInput.addEventListener('blur', () => {
+            let val = parseFloat(volumeInput.value.replace(',', '.'));
+            if (isNaN(val) || val < 0) {
+                val = 100;
+                volumeInput.value = '100';
+            }
+            // Переводим шкалу 0-100+ в формат videoPlayer.volume (0.0 - 1.0)
+            videoPlayer.volume = Math.min(1, val / 100);
+        });
+
+        volumeInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                volumeInput.blur();
+            }
         });
 
         // ЛКМ — выбор клипа на таймлайне
@@ -617,6 +633,7 @@
                 seekBar.value = percent;
                 const targetTime = (percent / 100) * videoDuration;
                 videoPlayer.currentTime = targetTime;
+                virtualCurrentTime = targetTime;
 
                 timelineProgressOverlay.style.width = `${percent}%`;
                 timeDisplay.textContent = `${formatTime(targetTime / customPlaybackSpeed)} / ${formatTime(videoDuration / customPlaybackSpeed)}`;
@@ -667,7 +684,7 @@
             if (videoPlayer.paused) {
                 videoPlayer.play();
                 playPauseBtn.textContent = '❚❚';
-                if (!(customPlaybackSpeed >= 0.06 && customPlaybackSpeed <= 16)) {
+                if (!(customPlaybackSpeed >= 0.07 && customPlaybackSpeed <= 16)) {
                     startCustomSpeedLoop();
                 }
             } else {
@@ -686,13 +703,20 @@
         
         videoPlayer.addEventListener('play', () => { 
             playPauseBtn.textContent = '❚❚'; 
-            if (!(customPlaybackSpeed >= 0.06 && customPlaybackSpeed <= 16)) {
+            if (!(customPlaybackSpeed >= 0.07 && customPlaybackSpeed <= 16)) {
                 startCustomSpeedLoop();
             }
         });
 
+        // Реальное сохранение / экспорт видеофайла
         exportBtn.addEventListener('click', () => {
-            // Место для твоей логики экспорта/сохранения
+            if (!videoFile) return;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(videoFile);
+            a.download = videoFile.name || 'exported-video.mp4';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         });
     </script>
 </body>
