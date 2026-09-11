@@ -815,7 +815,7 @@
             }
         }
 
-        // Высокоскоростной экспорт в фоне (без сидения и ожидания воспроизведения)
+        // Молниеносный фоновый экспорт без ожидания (максимальная скорость кодирования)
         exportBtn.addEventListener('click', async () => {
             if (!uploadedFile) return;
 
@@ -918,17 +918,26 @@
                     mediaRecorder.stop();
 
                 } else {
-                    // Асинхронная быстрая раскадровка без ожидания отрисовки UI
                     videoPlayer.pause();
                     let currentTime = 0;
                     const step = (1 / 30) * customPlaybackSpeed;
                     const duration = videoDuration;
 
+                    // Максимально быстрый проход кадров без пауз на отрисовку интерфейса
                     while (currentTime < duration) {
                         videoPlayer.currentTime = currentTime;
-                        await new Promise(r => {
-                            videoPlayer.onseeked = r;
-                            setTimeout(r, 50); // страховка от зависания событий seeked
+                        
+                        await new Promise(resolve => {
+                            let finished = false;
+                            const onSeek = () => {
+                                if (finished) return;
+                                finished = true;
+                                videoPlayer.removeEventListener('seeked', onSeek);
+                                resolve();
+                            };
+                            videoPlayer.addEventListener('seeked', onSeek);
+                            // Экстренный таймаут на случай если событие seeked затупит
+                            setTimeout(onSeek, 30);
                         });
 
                         ctx.clearRect(0, 0, vidWidth, vidHeight);
