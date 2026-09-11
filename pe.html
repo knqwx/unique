@@ -25,19 +25,28 @@
             font-size: 0.85rem;
             font-weight: 600;
             cursor: pointer;
-            z-index: 10;
         }
         .upload-btn:hover {
             color: #ffffff;
             border-color: rgba(255, 255, 255, 0.2);
         }
-        #previewCanvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+        .canvas-container {
             display: none;
+            background-color: #14161b;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .media-box {
+            background-color: #000000;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            display: block;
         }
     </style>
 </head>
@@ -47,11 +56,17 @@
         <input type="file" id="fileInput" accept="image/*">
     </label>
 
-    <canvas id="previewCanvas"></canvas>
+    <div class="canvas-container" id="canvasContainer">
+        <div class="media-box" id="mediaBox">
+            <canvas id="previewCanvas"></canvas>
+        </div>
+    </div>
 
     <script>
         const fileInput = document.getElementById('fileInput');
         const btnLabel = document.getElementById('btnLabel');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const mediaBox = document.getElementById('mediaBox');
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -64,20 +79,28 @@
                 const img = new Image();
                 img.onload = function() {
                     btnLabel.style.display = 'none';
-                    canvas.style.display = 'block';
+                    canvasContainer.style.display = 'block';
 
-                    canvas.width = window.innerWidth;
-                    canvas.height = window.innerHeight;
+                    const maxWidth = window.innerWidth * 0.75;
+                    const maxHeight = window.innerHeight * 0.75;
 
-                    const hRatio = canvas.width / img.width;
-                    const vRatio = canvas.height / img.height;
-                    const ratio = Math.max(hRatio, vRatio);
+                    let w = img.width;
+                    let h = img.height;
 
-                    const centerShiftX = (canvas.width - img.width * ratio) / 2;
-                    const centerShiftY = (canvas.height - img.height * ratio) / 2;
+                    if (w > maxWidth || h > maxHeight) {
+                        const ratio = Math.min(maxWidth / w, maxHeight / h);
+                        w = Math.round(w * ratio);
+                        h = Math.round(h * ratio);
+                    }
 
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0, img.width, img.height, centerShiftX, centerShiftY, img.width * ratio, img.height * ratio);
+                    mediaBox.style.width = w + 'px';
+                    mediaBox.style.height = h + 'px';
+
+                    canvas.width = w;
+                    canvas.height = h;
+
+                    ctx.clearRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
                 }
                 img.src = event.target.result;
             }
