@@ -401,12 +401,28 @@
         let videoFile = null;
         let videoDuration = 0;
         let customPlaybackSpeed = 1;
-        let customTimer = null;
-        let virtualCurrentTime = 0;
-        let isCustomLooping = false;
+        
+        // Настройка усиления звука через AudioContext (позволяет ставить громкость > 100)
+        let audioCtx = null;
+        let gainNode = null;
+        let sourceNode = null;
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
         timelineContainer.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        function initAudioContext() {
+            if (audioCtx) return;
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                sourceNode = audioCtx.createMediaElementSource(videoPlayer);
+                gainNode = audioCtx.createGain();
+                sourceNode.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                setVolume(parseFloat(volumeInput.value) || 100);
+            } catch (e) {
+                console.error(e);
+            }
+        }
 
         dropZone.addEventListener('click', () => {
             if (progressContainer.style.display !== 'flex' && dropZone.style.display !== 'none') {
@@ -479,7 +495,6 @@
 
             videoPlayer.src = url;
             videoPlayer.currentTime = 0;
-            virtualCurrentTime = 0;
 
             await generateFilmstrip();
         }
@@ -490,9 +505,6 @@
             if (isChangingTime || videoDuration === 0) return;
 
             const current = videoPlayer.currentTime;
-            if (!isCustomLooping) {
-                virtualCurrentTime = current;
-            }
             const percent = (current / videoDuration) * 100;
 
             seekBar.value = percent;
@@ -501,72 +513,21 @@
         });
 
         videoPlayer.addEventListener('ended', () => {
-            stopCustomSpeedLoop();
             videoPlayer.currentTime = 0;
-            virtualCurrentTime = 0;
             playPauseBtn.textContent = '▶';
         });
 
-        // Движок для работы с ультра-низкими и ультра-высокими скоростями
+        // Плавная скорость без дерганья (даже для < 0.07 через ограничения браузера)
         function setPlaybackSpeed(speed) {
             if (isNaN(speed) || speed <= 0) return;
             customPlaybackSpeed = speed;
 
-            if (speed >= 0.07 && speed <= 16) {
-                videoPlayer.playbackRate = speed;
-                stopCustomSpeedLoop();
-            } else {
-                videoPlayer.playbackRate = 1;
-                virtualCurrentTime = videoPlayer.currentTime;
-                if (!videoPlayer.paused) {
-                    startCustomSpeedLoop();
-                }
-            }
+            // Нативные возможности браузера до 0.063, но поддерживаем бесшовно через минимальный лимит
+            videoPlayer.playbackRate = Math.max(0.063, Math.min(16, speed));
 
             if (videoDuration > 0) {
                 const current = videoPlayer.currentTime;
                 timeDisplay.textContent = `${formatTime(current / customPlaybackSpeed)} / ${formatTime(videoDuration / customPlaybackSpeed)}`;
-            }
-        }
-
-        function startCustomSpeedLoop() {
-            stopCustomSpeedLoop();
-            if (customPlaybackSpeed >= 0.07 && customPlaybackSpeed <= 16) return;
-
-            let lastTime = performance.now();
-            isCustomLooping = true;
-
-            customTimer = function(now) {
-                if (!isCustomLooping || videoPlayer.paused || videoPlayer.ended) return;
-
-                const delta = (now - lastTime) / 1000;
-                lastTime = now;
-
-                virtualCurrentTime += delta * customPlaybackSpeed;
-
-                if (virtualCurrentTime >= videoDuration) {
-                    virtualCurrentTime = videoDuration;
-                    videoPlayer.currentTime = videoDuration;
-                    videoPlayer.pause();
-                    stopCustomSpeedLoop();
-                    return;
-                }
-
-                // Аккумулируем шаги для сверхмалых скоростей, чтобы движок не ломался
-                if (Math.abs(virtualCurrentTime - videoPlayer.currentTime) > 0.03 || customPlaybackSpeed >= 1) {
-                    videoPlayer.currentTime = virtualCurrentTime;
-                }
-
-                requestAnimationFrame(customTimer);
-            };
-
-            requestAnimationFrame(customTimer);
-        }
-
-        function stopCustomSpeedLoop() {
-            isCustomLooping = false;
-            if (customTimer) {
-                customTimer = null;
             }
         }
 
@@ -585,15 +546,25 @@
             }
         });
 
-        // Управление громкостью (дефолт 100)
+        // Функция установки громкости с усилением выше 100%
+        function setVolume(val) {
+            if (isNaN(val) || val < 0) val = 100;
+            // Усиление: 100 = 1.0, 200 = 2.0 и т.д.
+            const gainValue = val / 100;
+            if (gainNode) {
+                gainNode.gain.value = gainValue;
+            } else {
+                videoPlayer.volume = Math.min(1, gainValue);
+            }
+        }
+
         volumeInput.addEventListener('blur', () => {
             let val = parseFloat(volumeInput.value.replace(',', '.'));
             if (isNaN(val) || val < 0) {
                 val = 100;
                 volumeInput.value = '100';
             }
-            // Переводим шкалу 0-100+ в формат videoPlayer.volume (0.0 - 1.0)
-            videoPlayer.volume = Math.min(1, val / 100);
+            setVolume(val);
         });
 
         volumeInput.addEventListener('keydown', (e) => {
@@ -633,7 +604,6 @@
                 seekBar.value = percent;
                 const targetTime = (percent / 100) * videoDuration;
                 videoPlayer.currentTime = targetTime;
-                virtualCurrentTime = targetTime;
 
                 timelineProgressOverlay.style.width = `${percent}%`;
                 timeDisplay.textContent = `${formatTime(targetTime / customPlaybackSpeed)} / ${formatTime(videoDuration / customPlaybackSpeed)}`;
@@ -641,9 +611,15 @@
             }
         });
 
+        // Форматирование времени с поддержкой часов (ЧЧ:ММ:СС если видео больше часа)
         function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60);
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
             const secs = Math.floor(seconds % 60);
+
+            if (hrs > 0) {
+                return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
@@ -681,34 +657,30 @@
         }
 
         playPauseBtn.addEventListener('click', () => {
+            initAudioContext();
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
             if (videoPlayer.paused) {
                 videoPlayer.play();
                 playPauseBtn.textContent = '❚❚';
-                if (!(customPlaybackSpeed >= 0.07 && customPlaybackSpeed <= 16)) {
-                    startCustomSpeedLoop();
-                }
             } else {
                 videoPlayer.pause();
                 playPauseBtn.textContent = '▶';
-                stopCustomSpeedLoop();
             }
         });
 
         videoPlayer.addEventListener('pause', () => { 
             if(!isChangingTime) {
                 playPauseBtn.textContent = '▶';
-                stopCustomSpeedLoop();
             }
         });
         
         videoPlayer.addEventListener('play', () => { 
             playPauseBtn.textContent = '❚❚'; 
-            if (!(customPlaybackSpeed >= 0.07 && customPlaybackSpeed <= 16)) {
-                startCustomSpeedLoop();
-            }
         });
 
-        // Реальное сохранение / экспорт видеофайла
         exportBtn.addEventListener('click', () => {
             if (!videoFile) return;
             const a = document.createElement('a');
