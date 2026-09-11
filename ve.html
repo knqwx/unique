@@ -1,21 +1,129 @@
 <!DOCTYPE html>
 <html lang="en">
-<body style="background:#1a1d24;margin:0;height:100vh;display:flex;justify-content:center;align-items:center;font-family:sans-serif">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workspace</title>
+    <style>
+        body {
+            background-color: #1a1d24;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-    <div id="drop" onclick="inp.click()" style="border:2px dashed #ffffff20;border-radius:16px;width:550px;height:320px;display:flex;justify-content:center;align-items:center;background:#14161b;color:#94a3b8;cursor:pointer">Drag or choose files</div>
-    
-    <div id="ws" style="display:none;background:#14161b;border-radius:16px;padding:16px">
-        <video id="media" onclick="this.paused?this.play():this.pause()" style="max-width:800px;max-height:450px;display:none;background:#000;border-radius:12px"></video>
-        <img id="img" style="max-width:800px;max-height:450px;display:none;background:#000;border-radius:12px">
+        .upload-container {
+            border: 2px dashed rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            width: 550px;
+            height: 320px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background-color: #14161b;
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+            box-sizing: border-box;
+            padding: 20px;
+        }
+
+        .upload-container:hover {
+            border-color: rgba(255, 255, 255, 0.25);
+            background-color: #181b21;
+        }
+
+        .upload-text {
+            font-size: 1.25rem;
+            color: #94a3b8;
+            margin: 0;
+            font-weight: 500;
+        }
+
+        .workspace {
+            display: none;
+            background-color: #14161b;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .media-box {
+            max-width: 800px;
+            max-height: 450px;
+            background-color: #000000;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        video, img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: none;
+            outline: none;
+        }
+
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="upload-container" id="dropZone">
+        <p class="upload-text">Drag or choose files</p>
     </div>
 
-    <input type="file" id="inp" accept="video/*,image/*" style="display:none" onchange="
-        f=this.files[0]; if(!f)return;
-        drop.style.display='none'; ws.style.display='block';
-        url=URL.createObjectURL(f);
-        m = f.type[0]=='i'?img:media;
-        m.src=url; m.style.display='block';
-    ">
+    <div class="workspace" id="workspace">
+        <div class="media-box">
+            <video id="videoPlayer" onclick="this.paused ? this.play() : this.pause()"></video>
+            <img id="imagePlayer" alt="Uploaded Image">
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="video/*,image/*">
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const workspace = document.getElementById('workspace');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const imagePlayer = document.getElementById('imagePlayer');
+
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            dropZone.style.display = 'none';
+            workspace.style.display = 'block';
+
+            const fileUrl = URL.createObjectURL(file);
+            const isImage = file.type.startsWith('image/');
+
+            if (isImage) {
+                imagePlayer.src = fileUrl;
+                imagePlayer.style.display = 'block';
+                videoPlayer.style.display = 'none';
+            } else {
+                videoPlayer.src = fileUrl;
+                videoPlayer.style.display = 'block';
+                imagePlayer.style.display = 'none';
+            }
+        });
+    </script>
 
 </body>
 </html>
