@@ -815,12 +815,12 @@
             }
         }
 
-        // Рендеринг и экспорт со всеми изменениями (скорость, громкость, текст)
+        // Высококачественный и быстрый экспорт в фоновом режиме (без просмотра видео)
         exportBtn.addEventListener('click', async () => {
             if (!uploadedFile) return;
 
             exportBtn.disabled = true;
-            exportBtn.textContent = 'Rendering...';
+            exportBtn.textContent = 'Exporting...';
 
             if (isPlayingImage) stopImagePlayback();
             if (!videoPlayer.paused) videoPlayer.pause();
@@ -833,6 +833,7 @@
                 exportCanvas.height = vidHeight;
                 const ctx = exportCanvas.getContext('2d');
 
+                // Потоки записи с максимальным битрейтом 20 Mbps для отличного качества
                 const canvasStream = exportCanvas.captureStream(30);
                 let exportAudioCtx = null;
                 let exportSourceNode = null;
@@ -855,7 +856,10 @@
                     });
                 }
 
-                const options = { mimeType: 'video/webm; codecs=vp9,opus' };
+                const options = { 
+                    mimeType: 'video/webm; codecs=vp9,opus',
+                    videoBitsPerSecond: 20000000 // 20 Mbps (высокое качество)
+                };
                 if (!MediaRecorder.isTypeSupported(options.mimeType)) {
                     options.mimeType = 'video/webm';
                 }
@@ -884,23 +888,21 @@
 
                 mediaRecorder.start();
 
-                // Функция отрисовки текста с экрана на холст
                 const drawTextLayers = () => {
                     const textElements = mediaContainer.querySelectorAll('.draggable-text');
                     const containerRect = mediaContainer.getBoundingClientRect();
 
                     textElements.forEach(el => {
                         const elRect = el.getBoundingClientRect();
-                        // Вычисляем координаты относительно плеера и масштабируем под реальное разрешение видео
                         const x = (elRect.left - containerRect.left) * (vidWidth / containerRect.width);
-                        const y = (elRect.top - containerRect.top + 24) * (vidHeight / containerRect.height); // +24 под baseline шрифта
+                        const y = (elRect.top - containerRect.top + 24) * (vidHeight / containerRect.height);
 
                         ctx.font = '700 24px sans-serif';
                         ctx.fillStyle = '#ffffff';
                         ctx.shadowColor = 'rgba(0,0,0,0.8)';
                         ctx.shadowBlur = 4;
                         ctx.fillText(el.textContent, x, y);
-                        ctx.shadowBlur = 0; // сбрасываем тень
+                        ctx.shadowBlur = 0;
                     });
                 };
 
@@ -917,7 +919,7 @@
                             
                             updateImageUI(renderTime * customPlaybackSpeed);
                             renderTime += frameDuration;
-                            setTimeout(renderImageStep, 1000 / 30);
+                            setTimeout(renderImageStep, 5); // Быстрый рендер картинок
                         } else {
                             mediaRecorder.stop();
                         }
@@ -925,23 +927,29 @@
                     renderImageStep();
 
                 } else {
-                    videoPlayer.currentTime = 0;
-                    videoPlayer.playbackRate = customPlaybackSpeed;
+                    // Рендерим видео кадр за кадром в фоне без проигрывания на экран
+                    videoPlayer.pause();
+                    let currentTime = 0;
+                    const step = 1 / 30 * customPlaybackSpeed; // Шаг кадров с учетом скорости
+                    const duration = videoDuration;
 
-                    const renderVideoLoop = () => {
-                        if (mediaRecorder.state === 'inactive') return;
-                        ctx.clearRect(0, 0, vidWidth, vidHeight);
-                        ctx.drawImage(videoPlayer, 0, 0, vidWidth, vidHeight);
-                        drawTextLayers();
-                        requestAnimationFrame(renderVideoLoop);
+                    const processNextFrame = async () => {
+                        if (currentTime < duration) {
+                            videoPlayer.currentTime = currentTime;
+                            await new Promise(r => videoPlayer.onseeked = r);
+
+                            ctx.clearRect(0, 0, vidWidth, vidHeight);
+                            ctx.drawImage(videoPlayer, 0, 0, vidWidth, vidHeight);
+                            drawTextLayers();
+
+                            currentTime += step;
+                            setTimeout(processNextFrame, 0); // Максимальная скорость процессора
+                        } else {
+                            mediaRecorder.stop();
+                        }
                     };
 
-                    videoPlayer.onended = () => {
-                        mediaRecorder.stop();
-                    };
-
-                    requestAnimationFrame(renderVideoLoop);
-                    await videoPlayer.play();
+                    processNextFrame();
                 }
 
             } catch (err) {
