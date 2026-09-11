@@ -230,21 +230,8 @@
 
                 imagePlayer.onload = () => {
                     if (mode === 'auto') {
-                        // Ограничим максимальный размер бокса, чтобы он не разрывал экран, если исходник огромный
-                        let w = imagePlayer.naturalWidth;
-                        let h = imagePlayer.naturalHeight;
-                        
-                        // Если картинка больше 900x550, уменьшаем пропорционально для удобства
-                        const maxW = 900;
-                        const maxH = 550;
-                        if (w > maxW || h > maxH) {
-                            const ratio = Math.min(maxW / w, maxH / h);
-                            w = Math.round(w * ratio);
-                            h = Math.round(h * ratio);
-                        }
-
-                        mediaBox.style.width = w + 'px';
-                        mediaBox.style.height = h + 'px';
+                        mediaBox.style.width = imagePlayer.naturalWidth + 'px';
+                        mediaBox.style.height = imagePlayer.naturalHeight + 'px';
                     } else {
                         applyCustomSize();
                     }
@@ -256,20 +243,8 @@
 
                 videoPlayer.onloadedmetadata = () => {
                     if (mode === 'auto') {
-                        let w = videoPlayer.videoWidth;
-                        let h = videoPlayer.videoHeight;
-
-                        // Если видео больше экрана, пропорционально вписываем в разумные рамки
-                        const maxW = 900;
-                        const maxH = 550;
-                        if (w > maxW || h > maxH) {
-                            const ratio = Math.min(maxW / w, maxH / h);
-                            w = Math.round(w * ratio);
-                            h = Math.round(h * ratio);
-                        }
-
-                        mediaBox.style.width = w + 'px';
-                        mediaBox.style.height = h + 'px';
+                        mediaBox.style.width = videoPlayer.videoWidth + 'px';
+                        mediaBox.style.height = videoPlayer.videoHeight + 'px';
                     } else {
                         applyCustomSize();
                     }
