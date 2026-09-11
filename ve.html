@@ -114,7 +114,7 @@
             position: absolute;
             width: 100%;
             height: 100%;
-            object-fit: fill;
+            object-fit: cover; /* Защищает от черных полос и микро-зазоров */
             display: none;
             outline: none;
             cursor: grab;
@@ -159,7 +159,7 @@
     <div class="upload-wrapper" id="uploadWrapper">
         <div class="controls-row">
             <select class="resolution-selector" id="resolutionMode">
-                <option value="auto">Auto (Fit to Screen)</option>
+                <option value="auto">Auto (Fit Screen)</option>
                 <option value="custom">Custom Size</option>
             </select>
 
@@ -221,9 +221,7 @@
         customWidth.addEventListener('input', handleCustomInput);
         customHeight.addEventListener('input', handleCustomInput);
 
-        dropZone.addEventListener('click', () => {
-            fileInput.click();
-        });
+        dropZone.addEventListener('click', () => fileInput.click());
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -263,16 +261,22 @@
 
         function applyBoxSize(isAuto, natW, natH) {
             if (isAuto) {
-                mediaBox.style.width = '';
-                mediaBox.style.height = '';
-                mediaBox.style.maxWidth = '75vw';
-                mediaBox.style.maxHeight = '75vh';
-                mediaBox.style.aspectRatio = `${natW} / ${natH}`;
-            } else {
-                mediaBox.style.maxWidth = 'none';
-                mediaBox.style.maxHeight = 'none';
-                mediaBox.style.aspectRatio = 'auto';
+                // Точный расчет под размер окна браузера с сохранением пропорций
+                const maxWidth = window.innerWidth * 0.75;
+                const maxHeight = window.innerHeight * 0.75;
+                
+                let w = natW;
+                let h = natH;
+                
+                if (w > maxWidth || h > maxHeight) {
+                    const ratio = Math.min(maxWidth / w, maxHeight / h);
+                    w = Math.round(w * ratio);
+                    h = Math.round(h * ratio);
+                }
 
+                mediaBox.style.width = w + 'px';
+                mediaBox.style.height = h + 'px';
+            } else {
                 const w = customWidth.value;
                 const h = customHeight.value;
                 if (w) mediaBox.style.width = w + 'px';
@@ -280,19 +284,14 @@
             }
         }
 
-        // Управление пробелом для видео
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' && workspace.style.display === 'block' && videoPlayer.style.display === 'block') {
                 e.preventDefault();
-                if (videoPlayer.paused) {
-                    videoPlayer.play();
-                } else {
-                    videoPlayer.pause();
-                }
+                if (videoPlayer.paused) videoPlayer.play();
+                else videoPlayer.pause();
             }
         });
 
-        // Логика перетаскивания (Drag & Drop мышкой)
         let activeElement = null;
         let startX = 0;
         let startY = 0;
@@ -322,7 +321,6 @@
         document.addEventListener('mousemove', onDrag);
         document.addEventListener('mouseup', stopDrag);
 
-        // Функция сброса позиции
         function resetPosition() {
             posX = 0;
             posY = 0;
@@ -335,6 +333,5 @@
             resetBtn.blur();
         });
     </script>
-
 </body>
 </html>
