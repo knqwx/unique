@@ -179,13 +179,29 @@
             gap: 16px;
         }
 
-        video {
+        .media-container {
             width: 100%;
             max-height: 440px;
+            height: 440px;
             background-color: #000000;
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        video, img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
             outline: none;
+        }
+
+        img {
+            display: none;
         }
 
         /* Панель управления */
@@ -328,7 +344,10 @@
         
         <!-- Правый контент (плеер + элементы управления) -->
         <div class="main-content">
-            <video id="videoPlayer" controlslist="nodownload noplaybackrate" disablepictureinpicture></video>
+            <div class="media-container" id="mediaContainer">
+                <video id="videoPlayer" controlslist="nodownload noplaybackrate" disablepictureinpicture></video>
+                <img id="imagePlayer" alt="Uploaded Image">
+            </div>
             <div class="player-controls">
                 <div class="controls-top">
                     <div class="controls-left">
@@ -372,7 +391,7 @@
 
     </div>
 
-    <input type="file" id="fileInput" accept="video/*">
+    <input type="file" id="fileInput" accept="video/*,image/*">
     <video id="metaVideo" style="display:none;"></video>
 
     <script>
@@ -386,6 +405,7 @@
         
         const editorWorkspace = document.getElementById('editorWorkspace');
         const videoPlayer = document.getElementById('videoPlayer');
+        const imagePlayer = document.getElementById('imagePlayer');
         const metaVideo = document.getElementById('metaVideo');
         const playPauseBtn = document.getElementById('playPauseBtn');
         const seekBar = document.getElementById('seekBar');
@@ -398,19 +418,24 @@
         const volumeInput = document.getElementById('volumeInput');
         const exportBtn = document.getElementById('exportBtn');
 
-        let videoFile = null;
+        let uploadedFile = null;
+        let isImage = false;
         let videoDuration = 0;
         let customPlaybackSpeed = 1;
+        let imageCurrentTime = 0;
+        let isPlayingImage = false;
+        let imageTimer = null;
         
         let audioCtx = null;
         let gainNode = null;
         let sourceNode = null;
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
+        imagePlayer.addEventListener('contextmenu', (e) => e.preventDefault());
         timelineContainer.addEventListener('contextmenu', (e) => e.preventDefault());
 
         function initAudioContext() {
-            if (audioCtx) return;
+            if (audioCtx || isImage) return;
             try {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 sourceNode = audioCtx.createMediaElementSource(videoPlayer);
@@ -469,7 +494,8 @@
                     
                     setTimeout(async () => {
                         dropZone.style.display = 'none';
-                        videoFile = file;
+                        uploadedFile = file;
+                        isImage = file.type.startsWith('image/');
                         await initProjectMetadata();
                         editorWorkspace.style.display = 'flex';
                     }, 300);
@@ -485,23 +511,38 @@
         }
 
         async function initProjectMetadata() {
-            const url = URL.createObjectURL(videoFile);
-            metaVideo.src = url;
-            await new Promise(resolve => {
-                metaVideo.onloadedmetadata = () => resolve();
-            });
-            videoDuration = metaVideo.duration;
+            const url = URL.createObjectURL(uploadedFile);
 
-            videoPlayer.src = url;
-            videoPlayer.currentTime = 0;
+            if (isImage) {
+                // Картинка длится ровно 3 секунды
+                videoDuration = 3.0;
+                imageCurrentTime = 0;
+                imagePlayer.src = url;
+                imagePlayer.style.display = 'block';
+                videoPlayer.style.display = 'none';
+                await generateImageFilmstrip(url);
+                updateImageUI(0);
+            } else {
+                imagePlayer.style.display = 'none';
+                videoPlayer.style.display = 'block';
 
-            await generateFilmstrip();
+                metaVideo.src = url;
+                await new Promise(resolve => {
+                    metaVideo.onloadedmetadata = () => resolve();
+                });
+                videoDuration = metaVideo.duration;
+
+                videoPlayer.src = url;
+                videoPlayer.currentTime = 0;
+
+                await generateFilmstrip();
+            }
         }
 
         let isChangingTime = false;
 
         videoPlayer.addEventListener('timeupdate', () => {
-            if (isChangingTime || videoDuration === 0) return;
+            if (isImage || isChangingTime || videoDuration === 0) return;
 
             const current = videoPlayer.currentTime;
             const percent = (current / videoDuration) * 100;
@@ -519,10 +560,12 @@
         function setPlaybackSpeed(speed) {
             if (isNaN(speed) || speed <= 0) return;
             customPlaybackSpeed = speed;
-            videoPlayer.playbackRate = Math.max(0.063, Math.min(16, speed));
+            if (!isImage) {
+                videoPlayer.playbackRate = Math.max(0.063, Math.min(16, speed));
+            }
 
             if (videoDuration > 0) {
-                const current = videoPlayer.currentTime;
+                const current = isImage ? imageCurrentTime : videoPlayer.currentTime;
                 timeDisplay.textContent = `${formatTime(current / customPlaybackSpeed)} / ${formatTime(videoDuration / customPlaybackSpeed)}`;
             }
         }
@@ -542,17 +585,16 @@
             }
         });
 
-        // Установка громкости с жестким лимитом максимум до 300
         function setVolume(val) {
             if (isNaN(val) || val < 0) val = 100;
-            if (val > 300) val = 300; // Безопасный лимит
+            if (val > 300) val = 300;
 
             volumeInput.value = val;
             const gainValue = val / 100;
 
             if (gainNode) {
                 gainNode.gain.value = gainValue;
-            } else {
+            } else if (!isImage) {
                 videoPlayer.volume = Math.min(1, gainValue);
             }
         }
@@ -596,13 +638,26 @@
 
                 seekBar.value = percent;
                 const targetTime = (percent / 100) * videoDuration;
-                videoPlayer.currentTime = targetTime;
+
+                if (isImage) {
+                    imageCurrentTime = targetTime;
+                    updateImageUI(targetTime);
+                } else {
+                    videoPlayer.currentTime = targetTime;
+                }
 
                 timelineProgressOverlay.style.width = `${percent}%`;
                 timeDisplay.textContent = `${formatTime(targetTime / customPlaybackSpeed)} / ${formatTime(videoDuration / customPlaybackSpeed)}`;
                 isChangingTime = false;
             }
         });
+
+        function updateImageUI(time) {
+            const percent = (time / videoDuration) * 100;
+            seekBar.value = percent;
+            timelineProgressOverlay.style.width = `${percent}%`;
+            timeDisplay.textContent = `${formatTime(time / customPlaybackSpeed)} / ${formatTime(videoDuration / customPlaybackSpeed)}`;
+        }
 
         function formatTime(seconds) {
             const hrs = Math.floor(seconds / 3600);
@@ -618,8 +673,7 @@
         async function generateFilmstrip() {
             timelineStrip.innerHTML = '';
             const framesCount = 10;
-
-            const url = URL.createObjectURL(videoFile);
+            const url = URL.createObjectURL(uploadedFile);
             metaVideo.src = url;
             
             await new Promise(resolve => {
@@ -648,36 +702,105 @@
             metaVideo.src = '';
         }
 
-        playPauseBtn.addEventListener('click', () => {
-            initAudioContext();
-            if (audioCtx && audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
+        async function generateImageFilmstrip(url) {
+            timelineStrip.innerHTML = '';
+            const framesCount = 10;
+            const img = new Image();
+            img.src = url;
+            await new Promise(resolve => { img.onload = resolve; });
 
-            if (videoPlayer.paused) {
-                videoPlayer.play();
-                playPauseBtn.textContent = '❚❚';
+            for (let j = 0; j < framesCount; j++) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 80;
+                canvas.height = 60;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                timelineStrip.appendChild(canvas);
+            }
+        }
+
+        playPauseBtn.addEventListener('click', () => {
+            if (!isImage) {
+                initAudioContext();
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                if (videoPlayer.paused) {
+                    videoPlayer.play();
+                    playPauseBtn.textContent = '❚❚';
+                } else {
+                    videoPlayer.pause();
+                    playPauseBtn.textContent = '▶';
+                }
             } else {
-                videoPlayer.pause();
-                playPauseBtn.textContent = '▶';
+                // Логика воспроизведения картинки
+                if (isPlayingImage) {
+                    stopImagePlayback();
+                } else {
+                    startImagePlayback();
+                }
             }
         });
 
+        function startImagePlayback() {
+            isPlayingImage = true;
+            playPauseBtn.textContent = '❚❚';
+            let lastTime = performance.now();
+
+            if (imageCurrentTime >= videoDuration) {
+                imageCurrentTime = 0;
+            }
+
+            imageTimer = requestImageStep(lastTime);
+        }
+
+        function requestImageStep(lastTime) {
+            return requestAnimationFrame((now) => {
+                if (!isPlayingImage) return;
+
+                const delta = (now - lastTime) / 1000;
+                imageCurrentTime += delta * customPlaybackSpeed;
+
+                if (imageCurrentTime >= videoDuration) {
+                    imageCurrentTime = videoDuration;
+                    updateImageUI(imageCurrentTime);
+                    stopImagePlayback();
+                    imageCurrentTime = 0;
+                    return;
+                }
+
+                updateImageUI(imageCurrentTime);
+                imageTimer = requestImageStep(now);
+            });
+        }
+
+        function stopImagePlayback() {
+            isPlayingImage = false;
+            playPauseBtn.textContent = '▶';
+            if (imageTimer) {
+                cancelAnimationFrame(imageTimer);
+                imageTimer = null;
+            }
+        }
+
         videoPlayer.addEventListener('pause', () => { 
-            if(!isChangingTime) {
+            if(!isChangingTime && !isImage) {
                 playPauseBtn.textContent = '▶';
             }
         });
         
         videoPlayer.addEventListener('play', () => { 
-            playPauseBtn.textContent = '❚❚'; 
+            if (!isImage) {
+                playPauseBtn.textContent = '❚❚'; 
+            }
         });
 
         exportBtn.addEventListener('click', () => {
-            if (!videoFile) return;
+            if (!uploadedFile) return;
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(videoFile);
-            a.download = videoFile.name || 'exported-video.mp4';
+            a.href = URL.createObjectURL(uploadedFile);
+            a.download = uploadedFile.name || (isImage ? 'exported-image.png' : 'exported-video.mp4');
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
