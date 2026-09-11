@@ -203,6 +203,7 @@
         resolutionMode.addEventListener('change', (e) => {
             if (e.target.value === 'custom') {
                 customInputsContainer.style.display = 'flex';
+                applyBoxSize(false);
             } else {
                 customInputsContainer.style.display = 'none';
                 if (currentNaturalWidth && currentNaturalHeight) {
@@ -211,7 +212,6 @@
             }
         });
 
-        // Обновляем размер бокса при изменении инпутов в режиме custom
         function handleCustomInput() {
             if (resolutionMode.value === 'custom') {
                 applyBoxSize(false);
@@ -263,23 +263,16 @@
 
         function applyBoxSize(isAuto, natW, natH) {
             if (isAuto) {
-                // Подгоняем под экран с сохранением пропорций
-                const maxWidth = window.innerWidth * 0.7;
-                const maxHeight = window.innerHeight * 0.7;
-                
-                let w = natW;
-                let h = natH;
-                
-                if (w > maxWidth || h > maxHeight) {
-                    const ratio = Math.min(maxWidth / w, maxHeight / h);
-                    w = Math.round(w * ratio);
-                    h = Math.round(h * ratio);
-                }
-
-                mediaBox.style.width = w + 'px';
-                mediaBox.style.height = h + 'px';
+                mediaBox.style.width = '';
+                mediaBox.style.height = '';
+                mediaBox.style.maxWidth = '75vw';
+                mediaBox.style.maxHeight = '75vh';
+                mediaBox.style.aspectRatio = `${natW} / ${natH}`;
             } else {
-                // Строго по кастомным инпутам
+                mediaBox.style.maxWidth = 'none';
+                mediaBox.style.maxHeight = 'none';
+                mediaBox.style.aspectRatio = 'auto';
+
                 const w = customWidth.value;
                 const h = customHeight.value;
                 if (w) mediaBox.style.width = w + 'px';
