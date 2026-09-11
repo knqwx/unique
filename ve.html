@@ -1,43 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Workspace</title>
-    <style>
-        body { background: #1a1d24; color: #e2e8f0; font-family: sans-serif; margin: 0; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        .box { border: 2px dashed rgba(255,255,255,.12); border-radius: 16px; width: 550px; height: 320px; display: flex; justify-content: center; align-items: center; background: #14161b; cursor: pointer; }
-        .workspace { display: none; width: 800px; background: #14161b; border-radius: 16px; padding: 16px; flex-direction: column; }
-        .media { width: 100%; height: 450px; background: #000; border-radius: 12px; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-        video, img { max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
-        input { display: none; }
-    </style>
-</head>
-<body>
+<body style="background:#1a1d24;margin:0;height:100vh;display:flex;justify-content:center;align-items:center;font-family:sans-serif">
 
-    <div class="box" id="drop" onclick="inp.click()"><span>Drag or choose files</span></div>
+    <div id="drop" onclick="inp.click()" style="border:2px dashed #ffffff20;border-radius:16px;width:550px;height:320px;display:flex;justify-content:center;align-items:center;background:#14161b;color:#94a3b8;cursor:pointer">Drag or choose files</div>
     
-    <div class="workspace" id="ws">
-        <div class="media">
-            <video id="vid" controls></video>
-            <img id="img">
-        </div>
+    <div id="ws" style="display:none;background:#14161b;border-radius:16px;padding:16px">
+        <video id="media" onclick="this.paused?this.play():this.pause()" style="max-width:800px;max-height:450px;display:none;background:#000;border-radius:12px"></video>
+        <img id="img" style="max-width:800px;max-height:450px;display:none;background:#000;border-radius:12px">
     </div>
 
-    <input type="file" id="inp" accept="video/*,image/*">
-
-    <script>
-        inp.onchange = e => {
-            const file = e.target.files[0];
-            if (!file) return;
-            drop.style.display = 'none';
-            ws.style.display = 'flex';
-            const url = URL.createObjectURL(file);
-            const isImg = file.type.startsWith('image/');
-            
-            (isImg ? img : vid).src = url;
-            (isImg ? img : vid).style.display = 'block';
-        };
-    </script>
+    <input type="file" id="inp" accept="video/*,image/*" style="display:none" onchange="
+        f=this.files[0]; if(!f)return;
+        drop.style.display='none'; ws.style.display='block';
+        url=URL.createObjectURL(f);
+        m = f.type[0]=='i'?img:media;
+        m.src=url; m.style.display='block';
+    ">
 
 </body>
 </html>
