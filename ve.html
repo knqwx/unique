@@ -103,8 +103,14 @@
             padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            justify-content: space-between;
             box-sizing: border-box;
+        }
+
+        .sidebar-top {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
 
         .sidebar-title {
@@ -133,7 +139,7 @@
         .speed-slider {
             -webkit-appearance: none;
             appearance: none;
-            width: 100px;
+            width: 90px;
             height: 4px;
             background: #262a33;
             border-radius: 2px;
@@ -157,10 +163,28 @@
             color: #3b82f6;
             font-size: 0.85rem;
             font-weight: 600;
-            width: 50px;
+            width: 60px;
             outline: none;
             text-align: right;
             font-variant-numeric: tabular-nums;
+        }
+
+        /* Кнопка Export */
+        .btn-export {
+            background-color: #3b82f6;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+        }
+
+        .btn-export:hover {
+            background-color: #2563eb;
         }
 
         /* Главный контент (плеер + элементы управления) */
@@ -233,25 +257,35 @@
             font-weight: 500;
         }
 
-        .volume-slider {
-            -webkit-appearance: none;
-            appearance: none;
+        /* Кастомный слайдер громкости */
+        .custom-slider {
+            position: relative;
             width: 90px;
             height: 6px;
             background: #262a33;
             border-radius: 3px;
-            outline: none;
             cursor: pointer;
         }
 
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
+        .custom-slider-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: #3b82f6;
+            border-radius: 3px;
+            pointer-events: none;
+        }
+
+        .custom-slider-thumb {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
             width: 12px;
             height: 12px;
             border-radius: 50%;
             background: #3b82f6;
-            cursor: pointer;
+            pointer-events: none;
         }
 
         /* Строка с таймлайном */
@@ -349,8 +383,11 @@
                         <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
                     </div>
                     <div class="controls-right">
-                        <!-- Поставили шаг 0.01 для точной регулировки громкости -->
-                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.01" value="1">
+                        <!-- Точный кастомный слайдер громкости с шагом 0.01 -->
+                        <div class="custom-slider" id="volumeSlider">
+                            <div class="custom-slider-fill" id="volumeFill" style="width: 100%;"></div>
+                            <div class="custom-slider-thumb" id="volumeThumb" style="left: 100%;"></div>
+                        </div>
                     </div>
                 </div>
                 
@@ -367,13 +404,16 @@
 
         <!-- Правая боковая панель -->
         <div class="sidebar">
-            <div class="speed-control-group">
-                <div class="sidebar-title">Playback Speed</div>
-                <div class="speed-slider-container">
-                    <input type="range" class="speed-slider" id="speedSlider" min="0.1" max="10" step="0.01" value="1">
-                    <input type="text" class="speed-input" id="speedInput" value="1.00x">
+            <div class="sidebar-top">
+                <div class="speed-control-group">
+                    <div class="sidebar-title">Playback Speed</div>
+                    <div class="speed-slider-container">
+                        <input type="range" class="speed-slider" id="speedSlider" min="0.1" max="5" step="0.01" value="1">
+                        <input type="text" class="speed-input" id="speedInput" value="1.00x">
+                    </div>
                 </div>
             </div>
+            <button class="btn-export" id="exportBtn">Export</button>
         </div>
 
     </div>
@@ -399,10 +439,15 @@
         const timelineStrip = document.getElementById('timelineStrip');
         const timelineProgressOverlay = document.getElementById('timelineProgressOverlay');
         const timelineContainer = document.getElementById('timelineContainer');
+        
+        // Элементы громкости
         const volumeSlider = document.getElementById('volumeSlider');
+        const volumeFill = document.getElementById('volumeFill');
+        const volumeThumb = document.getElementById('volumeThumb');
 
         const speedSlider = document.getElementById('speedSlider');
         const speedInput = document.getElementById('speedInput');
+        const exportBtn = document.getElementById('exportBtn');
 
         let videoFile = null;
         let videoDuration = 0;
@@ -504,11 +549,15 @@
             playPauseBtn.textContent = '▶';
         });
 
-        // Управление скоростью
-        function updatePlaybackSpeed(speed) {
+        // Управление скоростью без лимитов при вводе
+        function updatePlaybackSpeed(speed, updateSlider = true) {
             if (isNaN(speed) || speed <= 0) return;
             videoPlayer.playbackRate = speed;
-            speedSlider.value = speed;
+            
+            if (updateSlider && speed <= 5) {
+                speedSlider.value = speed;
+            }
+            
             speedInput.value = speed.toFixed(2) + 'x';
 
             if (videoDuration > 0) {
@@ -518,18 +567,16 @@
         }
 
         speedSlider.addEventListener('input', () => {
-            updatePlaybackSpeed(parseFloat(speedSlider.value));
+            updatePlaybackSpeed(parseFloat(speedSlider.value), false);
         });
 
         speedInput.addEventListener('focus', () => {
-            speedInput.value = parseFloat(speedSlider.value);
+            speedInput.value = videoPlayer.playbackRate.toFixed(2);
         });
 
         speedInput.addEventListener('blur', () => {
             let val = parseFloat(speedInput.value);
-            if (isNaN(val)) val = 1;
-            if (val < 0.1) val = 0.1;
-            if (val > 10) val = 10;
+            if (isNaN(val) || val <= 0) val = 1;
             updatePlaybackSpeed(val);
         });
 
@@ -539,12 +586,47 @@
             }
         });
 
-        // Плавная и точная регулировка громкости по 0.01
-        volumeSlider.addEventListener('input', () => {
-            videoPlayer.volume = parseFloat(volumeSlider.value);
+        // Точный кастомный слайдер громкости с шагом 0.01 без скачков
+        function setVolume(val) {
+            if (val < 0) val = 0;
+            if (val > 1) val = 1;
+            // Округляем до сотых (шаг 0.01)
+            val = Math.round(val * 100) / 100;
+
+            videoPlayer.volume = val;
+            const percent = val * 100;
+            volumeFill.style.width = `${percent}%`;
+            volumeThumb.style.left = `${percent}%`;
+        }
+
+        let isDraggingVolume = false;
+
+        volumeSlider.addEventListener('mousedown', (e) => {
+            isDraggingVolume = true;
+            updateVolumeFromMouse(e);
         });
 
-        // ЛКМ — выбор клипа
+        document.addEventListener('mousemove', (e) => {
+            if (isDraggingVolume) {
+                updateVolumeFromMouse(e);
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDraggingVolume = false;
+        });
+
+        function updateVolumeFromMouse(e) {
+            const rect = volumeSlider.getBoundingClientRect();
+            let offsetX = e.clientX - rect.left;
+            if (offsetX < 0) offsetX = 0;
+            if (offsetX > rect.width) offsetX = rect.width;
+
+            const ratio = offsetX / rect.width;
+            setVolume(ratio);
+        }
+
+        // ЛКМ — выбор клипа на таймлайне
         timelineContainer.addEventListener('mousedown', (e) => {
             if (e.button === 0) {
                 timelineContainer.classList.add('active');
@@ -634,6 +716,10 @@
 
         videoPlayer.addEventListener('pause', () => { if(!isChangingTime) playPauseBtn.textContent = '▶'; });
         videoPlayer.addEventListener('play', () => { playPauseBtn.textContent = '❚❚'; });
+
+        exportBtn.addEventListener('click', () => {
+            alert('Export functionality is ready to be implemented!');
+        });
     </script>
 </body>
 </html>
