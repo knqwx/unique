@@ -171,6 +171,12 @@
             background-color: #2563eb;
         }
 
+        .btn-export:disabled {
+            background-color: #262a33;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+
         /* Главный контент (плеер + элементы управления) */
         .main-content {
             flex-grow: 1;
@@ -514,7 +520,6 @@
             const url = URL.createObjectURL(uploadedFile);
 
             if (isImage) {
-                // Картинка длится ровно 3 секунды
                 videoDuration = 3.0;
                 imageCurrentTime = 0;
                 imagePlayer.src = url;
@@ -734,7 +739,6 @@
                     playPauseBtn.textContent = '▶';
                 }
             } else {
-                // Логика воспроизведения картинки
                 if (isPlayingImage) {
                     stopImagePlayback();
                 } else {
@@ -796,14 +800,134 @@
             }
         });
 
-        exportBtn.addEventListener('click', () => {
+        // Функция экспорта с реальным рендерингом (сохранением скорости, громкости и будущих изменений)
+        exportBtn.addEventListener('click', async () => {
             if (!uploadedFile) return;
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(uploadedFile);
-            a.download = uploadedFile.name || (isImage ? 'exported-image.png' : 'exported-video.mp4');
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+
+            exportBtn.disabled = true;
+            exportBtn.textContent = 'Rendering...';
+
+            if (isPlayingImage) stopImagePlayback();
+            if (!videoPlayer.paused) videoPlayer.pause();
+
+            try {
+                // Создаем скрытый холст для рендеринга кадра
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = isImage ? imagePlayer.naturalWidth || 1280 : videoPlayer.videoWidth || 1280;
+                exportCanvas.height = isImage ? imagePlayer.naturalHeight || 720 : videoPlayer.videoHeight || 720;
+                const ctx = exportCanvas.getContext('2d');
+
+                // Настраиваем захват потока с холста и аудио
+                const canvasStream = exportCanvas.captureStream(30); // 30 FPS
+                let exportAudioDestination = null;
+                let exportAudioCtx = null;
+                let exportSourceNode = null;
+                let exportGainNode = null;
+
+                if (!isImage) {
+                    exportAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    exportSourceNode = exportAudioCtx.createMediaElementSource(videoPlayer);
+                    exportGainNode = exportAudioCtx.createGain();
+                    exportAudioDestination = exportAudioCtx.createMediaStreamDestination();
+
+                    exportSourceNode.connect(exportGainNode);
+                    exportGainNode.connect(exportAudioDestination);
+                    // Также подключаем к динамикам браузера, чтобы шел рендеринг, либо не подключаем если тихо (лучше подключить к destination тихо или через gain)
+                    exportGainNode.connect(exportAudioCtx.destination);
+
+                    const currentVolVal = parseFloat(volumeInput.value) || 100;
+                    exportGainNode.gain.value = currentVolVal / 100;
+
+                    exportAudioDestination.stream.getAudioTracks().forEach(track => {
+                        canvasStream.addTrack(track);
+                    });
+                }
+
+                const options = { mimeType: 'video/webm; codecs=vp9,opus' };
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    options.mimeType = 'video/webm';
+                }
+
+                const mediaRecorder = new MediaRecorder(canvasStream, options);
+                const chunks = [];
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) chunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = (uploadedFile.name ? uploadedFile.name.substring(0, uploadedFile.name.lastIndexOf('.')) : 'exported') + '-edited.webm';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+
+                    exportBtn.disabled = false;
+                    exportBtn.textContent = 'Export';
+
+                    // Возвращаем плеер в исходное состояние
+                    if (isImage) {
+                        imageCurrentTime = 0;
+                        updateImageUI(0);
+                    } else {
+                        videoPlayer.currentTime = 0;
+                        videoPlayer.playbackRate = 1;
+                    }
+                };
+
+                mediaRecorder.start();
+
+                if (isImage) {
+                    // Рендеринг картинки
+                    let renderTime = 0;
+                    const frameDuration = 1 / 30; // 30 кадров в секунду
+                    const totalDuration = videoDuration / customPlaybackSpeed;
+
+                    const renderStep = () => {
+                        if (renderTime <= totalDuration) {
+                            ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
+                            ctx.drawImage(imagePlayer, 0, 0, exportCanvas.width, exportCanvas.height);
+                            
+                            updateImageUI(renderTime * customPlaybackSpeed);
+                            renderTime += frameDuration;
+                            setTimeout(renderStep, 1000 / 30);
+                        } else {
+                            mediaRecorder.stop();
+                            if (exportAudioCtx) exportAudioCtx.close();
+                        }
+                    };
+                    renderStep();
+
+                } else {
+                    // Рендеринг видео
+                    videoPlayer.currentTime = 0;
+                    videoPlayer.playbackRate = customPlaybackSpeed;
+                    
+                    const renderDrawLoop = () => {
+                        if (videoPlayer.ended || videoPlayer.paused) return;
+                        ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
+                        ctx.drawImage(videoPlayer, 0, 0, exportCanvas.width, exportCanvas.height);
+                        requestAnimationFrame(renderDrawLoop);
+                    };
+
+                    videoPlayer.onended = () => {
+                        mediaRecorder.stop();
+                        if (exportAudioCtx) exportAudioCtx.close();
+                    };
+
+                    await videoPlayer.play();
+                    renderDrawLoop();
+                }
+
+            } catch (err) {
+                console.error(err);
+                alert('Ошибка при экспорте видео');
+                exportBtn.disabled = false;
+                exportBtn.textContent = 'Export';
+            }
         });
     </script>
 </body>
