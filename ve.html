@@ -349,7 +349,8 @@
                         <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
                     </div>
                     <div class="controls-right">
-                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
+                        <!-- Поставили шаг 0.01 для точной регулировки громкости -->
+                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.01" value="1">
                     </div>
                 </div>
                 
@@ -400,7 +401,6 @@
         const timelineContainer = document.getElementById('timelineContainer');
         const volumeSlider = document.getElementById('volumeSlider');
 
-        // Элементы управления скоростью в боковой панели
         const speedSlider = document.getElementById('speedSlider');
         const speedInput = document.getElementById('speedInput');
 
@@ -539,6 +539,11 @@
             }
         });
 
+        // Плавная и точная регулировка громкости по 0.01
+        volumeSlider.addEventListener('input', () => {
+            videoPlayer.volume = parseFloat(volumeSlider.value);
+        });
+
         // ЛКМ — выбор клипа
         timelineContainer.addEventListener('mousedown', (e) => {
             if (e.button === 0) {
@@ -629,10 +634,6 @@
 
         videoPlayer.addEventListener('pause', () => { if(!isChangingTime) playPauseBtn.textContent = '▶'; });
         videoPlayer.addEventListener('play', () => { playPauseBtn.textContent = '❚❚'; });
-
-        volumeSlider.addEventListener('input', () => {
-            videoPlayer.volume = volumeSlider.value;
-        });
     </script>
 </body>
 </html>
