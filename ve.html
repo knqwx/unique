@@ -378,8 +378,7 @@
                 <div class="speed-control-group">
                     <div class="sidebar-title">Playback Speed</div>
                     <div class="speed-input-container">
-                        <span class="speed-input-label">Multiplier</span>
-                        <!-- Поле для ввода любой скорости без каких-либо лимитов -->
+                        <span class="speed-input-label">Speed</span>
                         <input type="text" class="speed-input" id="speedInput" value="1">
                     </div>
                 </div>
@@ -417,6 +416,8 @@
 
         let videoFile = null;
         let videoDuration = 0;
+        let customPlaybackSpeed = 1; // Реальная скорость видео
+        let customTimer = null;
 
         videoPlayer.addEventListener('contextmenu', (e) => e.preventDefault());
         timelineContainer.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -503,26 +504,66 @@
 
             const current = videoPlayer.currentTime;
             const percent = (current / videoDuration) * 100;
-            const speed = videoPlayer.playbackRate || 1;
 
             seekBar.value = percent;
             timelineProgressOverlay.style.width = `${percent}%`;
-            timeDisplay.textContent = `${formatTime(current / speed)} / ${formatTime(videoDuration / speed)}`;
+            timeDisplay.textContent = `${formatTime(current / customPlaybackSpeed)} / ${formatTime(videoDuration / customPlaybackSpeed)}`;
         });
 
         videoPlayer.addEventListener('ended', () => {
+            stopCustomSpeedLoop();
             videoPlayer.currentTime = 0;
             playPauseBtn.textContent = '▶';
         });
 
-        // Установка произвольной скорости без ограничений
+        // Движок для поддержки любых скоростей (от 0.00001 до 100000+)
         function setPlaybackSpeed(speed) {
             if (isNaN(speed) || speed <= 0) return;
-            videoPlayer.playbackRate = speed;
+            customPlaybackSpeed = speed;
+
+            if (speed >= 0.06 && speed <= 16) {
+                videoPlayer.playbackRate = speed;
+                stopCustomSpeedLoop();
+            } else {
+                videoPlayer.playbackRate = 1;
+                if (!videoPlayer.paused) {
+                    startCustomSpeedLoop();
+                }
+            }
 
             if (videoDuration > 0) {
                 const current = videoPlayer.currentTime;
-                timeDisplay.textContent = `${formatTime(current / speed)} / ${formatTime(videoDuration / speed)}`;
+                timeDisplay.textContent = `${formatTime(current / customPlaybackSpeed)} / ${formatTime(videoDuration / customPlaybackSpeed)}`;
+            }
+        }
+
+        function startCustomSpeedLoop() {
+            stopCustomSpeedLoop();
+            if (customPlaybackSpeed >= 0.06 && customPlaybackSpeed <= 16) return;
+
+            let lastTime = performance.now();
+            customTimer = requestAnimationFrame(function step(now) {
+                if (videoPlayer.paused || videoPlayer.ended) return;
+
+                const delta = (now - lastTime) / 1000;
+                lastTime = now;
+
+                let nextTime = videoPlayer.currentTime + delta * customPlaybackSpeed;
+                if (nextTime >= videoDuration) {
+                    videoPlayer.currentTime = videoDuration;
+                    videoPlayer.pause();
+                    return;
+                }
+                videoPlayer.currentTime = nextTime;
+
+                customTimer = requestAnimationFrame(step);
+            });
+        }
+
+        function stopCustomSpeedLoop() {
+            if (customTimer) {
+                cancelAnimationFrame(customTimer);
+                customTimer = null;
             }
         }
 
@@ -578,8 +619,7 @@
                 videoPlayer.currentTime = targetTime;
 
                 timelineProgressOverlay.style.width = `${percent}%`;
-                const speed = videoPlayer.playbackRate || 1;
-                timeDisplay.textContent = `${formatTime(targetTime / speed)} / ${formatTime(videoDuration / speed)}`;
+                timeDisplay.textContent = `${formatTime(targetTime / customPlaybackSpeed)} / ${formatTime(videoDuration / customPlaybackSpeed)}`;
                 isChangingTime = false;
             }
         });
@@ -627,17 +667,32 @@
             if (videoPlayer.paused) {
                 videoPlayer.play();
                 playPauseBtn.textContent = '❚❚';
+                if (!(customPlaybackSpeed >= 0.06 && customPlaybackSpeed <= 16)) {
+                    startCustomSpeedLoop();
+                }
             } else {
                 videoPlayer.pause();
                 playPauseBtn.textContent = '▶';
+                stopCustomSpeedLoop();
             }
         });
 
-        videoPlayer.addEventListener('pause', () => { if(!isChangingTime) playPauseBtn.textContent = '▶'; });
-        videoPlayer.addEventListener('play', () => { playPauseBtn.textContent = '❚❚'; });
+        videoPlayer.addEventListener('pause', () => { 
+            if(!isChangingTime) {
+                playPauseBtn.textContent = '▶';
+                stopCustomSpeedLoop();
+            }
+        });
+        
+        videoPlayer.addEventListener('play', () => { 
+            playPauseBtn.textContent = '❚❚'; 
+            if (!(customPlaybackSpeed >= 0.06 && customPlaybackSpeed <= 16)) {
+                startCustomSpeedLoop();
+            }
+        });
 
         exportBtn.addEventListener('click', () => {
-            alert('Export functionality is ready to be implemented!');
+            // Место для твоей логики экспорта/сохранения
         });
     </script>
 </body>
