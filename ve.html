@@ -52,6 +52,7 @@
             border-radius: 16px;
             padding: 16px;
             border: 1px solid rgba(255, 255, 255, 0.08);
+            position: relative;
         }
 
         .media-box {
@@ -80,6 +81,28 @@
             cursor: grabbing;
         }
 
+        .reset-btn {
+            position: absolute;
+            top: 26px;
+            right: 26px;
+            background-color: rgba(26, 29, 36, 0.8);
+            color: #94a3b8;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+            z-index: 10;
+            display: none;
+        }
+
+        .reset-btn:hover {
+            background-color: rgba(43, 48, 60, 0.9);
+            color: #ffffff;
+        }
+
         #fileInput {
             display: none;
         }
@@ -92,6 +115,7 @@
     </div>
 
     <div class="workspace" id="workspace">
+        <button class="reset-btn" id="resetBtn">Reset Position</button>
         <div class="media-box" id="mediaBox">
             <video id="videoPlayer"></video>
             <img id="imagePlayer" alt="Uploaded Image">
@@ -106,6 +130,7 @@
         const workspace = document.getElementById('workspace');
         const videoPlayer = document.getElementById('videoPlayer');
         const imagePlayer = document.getElementById('imagePlayer');
+        const resetBtn = document.getElementById('resetBtn');
 
         dropZone.addEventListener('click', () => {
             fileInput.click();
@@ -117,6 +142,10 @@
 
             dropZone.style.display = 'none';
             workspace.style.display = 'block';
+            resetBtn.style.display = 'block';
+
+            // Сбрасываем позицию при загрузке нового файла
+            resetPosition();
 
             const fileUrl = URL.createObjectURL(file);
             const isImage = file.type.startsWith('image/');
@@ -135,7 +164,7 @@
         // Управление пробелом для видео
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' && workspace.style.display === 'block' && videoPlayer.style.display === 'block') {
-                e.preventDefault(); // чтобы страница не прокручивалась вниз
+                e.preventDefault();
                 if (videoPlayer.paused) {
                     videoPlayer.play();
                 } else {
@@ -173,6 +202,16 @@
         imagePlayer.addEventListener('mousedown', startDrag);
         document.addEventListener('mousemove', onDrag);
         document.addEventListener('mouseup', stopDrag);
+
+        // Функция сброса позиции
+        function resetPosition() {
+            posX = 0;
+            posY = 0;
+            videoPlayer.style.transform = 'translate(0px, 0px)';
+            imagePlayer.style.transform = 'translate(0px, 0px)';
+        }
+
+        resetBtn.addEventListener('click', resetPosition);
     </script>
 
 </body>
