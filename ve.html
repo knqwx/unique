@@ -12,9 +12,36 @@
             margin: 0;
             height: 100vh;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             user-select: none;
+            gap: 16px;
+        }
+
+        .upload-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .format-selector {
+            background-color: #14161b;
+            color: #94a3b8;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+        .format-selector:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
         }
 
         .upload-container {
@@ -112,8 +139,16 @@
 
     <button class="reset-btn" id="resetBtn">Reset Position</button>
 
-    <div class="upload-container" id="dropZone">
-        <p class="upload-text">Drag or choose files</p>
+    <div class="upload-wrapper" id="uploadWrapper">
+        <select class="format-selector" id="formatSelector">
+            <option value="auto">Auto (All Media)</option>
+            <option value="video">Video Only</option>
+            <option value="custom">Custom (mp4, webm, mov)</option>
+        </select>
+
+        <div class="upload-container" id="dropZone">
+            <p class="upload-text">Drag or choose files</p>
+        </div>
     </div>
 
     <div class="workspace" id="workspace">
@@ -128,10 +163,24 @@
     <script>
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
+        const uploadWrapper = document.getElementById('uploadWrapper');
+        const formatSelector = document.getElementById('formatSelector');
         const workspace = document.getElementById('workspace');
         const videoPlayer = document.getElementById('videoPlayer');
         const imagePlayer = document.getElementById('imagePlayer');
         const resetBtn = document.getElementById('resetBtn');
+
+        // Динамическое изменение атрибута accept в зависимости от выбранного режима
+        formatSelector.addEventListener('change', (e) => {
+            const mode = e.target.value;
+            if (mode === 'auto') {
+                fileInput.accept = 'video/*,image/*';
+            } else if (mode === 'video') {
+                fileInput.accept = 'video/*';
+            } else if (mode === 'custom') {
+                fileInput.accept = 'video/mp4,video/webm,video/quicktime';
+            }
+        });
 
         dropZone.addEventListener('click', () => {
             fileInput.click();
@@ -141,7 +190,7 @@
             const file = e.target.files[0];
             if (!file) return;
 
-            dropZone.style.display = 'none';
+            uploadWrapper.style.display = 'none';
             workspace.style.display = 'block';
             resetBtn.style.display = 'block';
 
@@ -213,7 +262,7 @@
 
         resetBtn.addEventListener('click', () => {
             resetPosition();
-            resetBtn.blur(); // Снимает фокус с кнопки, чтобы пробел работал сразу
+            resetBtn.blur();
         });
     </script>
 
