@@ -66,17 +66,13 @@
             justify-content: center;
             align-items: center;
             cursor: crosshair;
-            /* Важно: отключаем интерполяцию для всего контейнера,
-               чтобы изображение и рисование были пиксельными */
             image-rendering: pixelated;
             image-rendering: crisp-edges;
-            /* Чтобы контейнер не менял размер при рисовании */
             flex-shrink: 0;
         }
 
         canvas {
             display: block;
-            /* Дублируем на всякий случай для самого элемента canvas */
             image-rendering: pixelated;
             image-rendering: crisp-edges;
         }
@@ -133,7 +129,7 @@
             <canvas id="previewCanvas"></canvas>
         </div>
         <div class="toolbar">
-            <span>Пиксельное рисование</span>
+            <span>Пиксельное рисование (сплошная линия)</span>
             <div class="controls">
                 <button class="btn active" id="pencilBtn">Карандаш</button>
                 <button class="btn" id="eraserBtn">Ластик</button>
@@ -148,7 +144,7 @@
         const canvasContainer = document.getElementById('canvasContainer');
         const mediaBox = document.getElementById('mediaBox');
         const canvas = document.getElementById('previewCanvas');
-        const ctx = canvas.getContext('2d', { alpha: false }); // Оптимизация контекста
+        const ctx = canvas.getContext('2d', { alpha: false });
 
         const pencilBtn = document.getElementById('pencilBtn');
         const eraserBtn = document.getElementById('eraserBtn');
@@ -156,11 +152,10 @@
 
         let isDrawing = false;
         let originalImage = null;
-        let currentTool = 'pencil'; // 'pencil' или 'eraser'
+        let currentTool = 'pencil';
         let lastX = 0;
         let lastY = 0;
 
-        // Настройка контекста для четкости (пикселизации)
         function setupContext() {
             ctx.imageSmoothingEnabled = false;
             ctx.mozImageSmoothingEnabled = false;
@@ -206,14 +201,12 @@
                     dropZone.style.display = 'none';
                     canvasContainer.style.display = 'flex';
 
-                    // Ограничиваем размер превью, оставляя место по краям
                     const maxWidth = window.innerWidth * 0.85;
                     const maxHeight = window.innerHeight * 0.8;
 
                     let w = img.width;
                     let h = img.height;
 
-                    // Сохраняем пропорции, если картинка слишком большая
                     if (w > maxWidth || h > maxHeight) {
                         const ratio = Math.min(maxWidth / w, maxHeight / h);
                         w = Math.round(w * ratio);
@@ -223,7 +216,6 @@
                     mediaBox.style.width = w + 'px';
                     mediaBox.style.height = h + 'px';
 
-                    // Устанавливаем размер внутреннего холста
                     canvas.width = w;
                     canvas.height = h;
 
@@ -237,15 +229,12 @@
 
         function redrawCanvas() {
             if (!originalImage) return;
-            // Заливаем фон черным (на случай прозрачности в исходнике)
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            // Рисуем картинку
             ctx.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
-            setupContext(); // Повторно отключаем сглаживание после drawImage
+            setupContext();
         }
 
-        // Инструменты
         pencilBtn.addEventListener('click', () => {
             currentTool = 'pencil';
             pencilBtn.classList.add('active');
@@ -260,73 +249,95 @@
 
         clearBtn.addEventListener('click', redrawCanvas);
 
-        // Логика рисования (пиксельная)
         function getMousePos(e) {
             const rect = canvas.getBoundingClientRect();
-            // Получаем координаты относительно элемента и округляем
-            // для получения точных пиксельных координат
             return {
                 x: Math.floor(e.clientX - rect.left),
                 y: Math.floor(e.clientY - rect.top)
             };
         }
 
-        function draw(e) {
-            if (!isDrawing) return;
-            const pos = getMousePos(e);
+        // Функция отрисовки линии по точкам (без промежутков)
+        function drawLine(x0, y0, x1, y1) {
+            const dx = Math.abs(x1 - x0);
+            const dy = Math.abs(y1 - y0);
+            const sx = (x0 < x1) ? 1 : -1;
+            const sy = (y0 < y1) ? 1 : -1;
+            let err = dx - dy;
 
-            // Рисуем один квадрат размером 1x1 пиксель
-            // (или больше, если нужно, но обычно для пиксель-арта это 1 пиксель)
-            if (currentTool === 'pencil') {
-                ctx.fillStyle = '#ffffff'; // Белый карандаш
-            } else {
-                // Ластик: берем цвет пикселя оригинала
-                // Т.к. мы рисуем поверх, это имитирует стирание
-                const pixelData = ctx.getImageData(pos.x, pos.y, 1, 1).data;
-                // Это работает корректно, т.к. мы делаем redraw Canvas
-                // с оригиналом в качестве фона
-                ctx.fillStyle = `rgb(${pixelData[0]}, ${pixelData[1]}, ${pixelData[2]})`;
+            let cx = x0;
+            let cy = y0;
+
+            while (true) {
+                if (cx >= 0 && cx < canvas.width && cy >= 0 && cy < canvas.height) {
+                    if (currentTool === 'pencil') {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(cx, cy, 1, 1);
+                    } else {
+                        const pixelData = ctx.getImageData(cx, cy, 1, 1).data;
+                        ctx.fillStyle = `rgb(${pixelData[0]}, ${pixelData[1]}, ${pixelData[2]})`;
+                        ctx.fillRect(cx, cy, 1, 1);
+                    }
+                }
+
+                if (cx === x1 && cy === y1) break;
+                const e2 = 2 * err;
+                if (e2 > -dy) {
+                    err -= dy;
+                    cx += sx;
+                }
+                if (e2 < dx) {
+                    err += dx;
+                    cy += sy;
+                }
             }
-
-            // Рисуем пиксель
-            ctx.fillRect(pos.x, pos.y, 1, 1);
         }
 
-        // Мышь
         canvas.addEventListener('mousedown', (e) => {
             isDrawing = true;
-            draw(e); // Рисуем точку при клике
+            const pos = getMousePos(e);
+            lastX = pos.x;
+            lastY = pos.y;
+            drawLine(lastX, lastY, lastX, lastY); // Рисуем стартовую точку
         });
 
         canvas.addEventListener('mousemove', (e) => {
             if (!isDrawing) return;
-            draw(e);
+            const pos = getMousePos(e);
+            drawLine(lastX, lastY, pos.x, pos.y);
+            lastX = pos.x;
+            lastY = pos.y;
         });
 
         window.addEventListener('mouseup', () => {
             isDrawing = false;
         });
 
-        // Тачскрин
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             isDrawing = true;
             const touch = e.touches[0];
-            draw({ clientX: touch.clientX, clientY: touch.clientY });
+            const rect = canvas.getBoundingClientRect();
+            lastX = Math.floor(touch.clientX - rect.left);
+            lastY = Math.floor(touch.clientY - rect.top);
+            drawLine(lastX, lastY, lastX, lastY);
         }, { passive: false });
 
         canvas.addEventListener('touchmove', (e) => {
             if (!isDrawing) return;
             e.preventDefault();
             const touch = e.touches[0];
-            draw({ clientX: touch.clientX, clientY: touch.clientY });
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor(touch.clientX - rect.left);
+            const y = Math.floor(touch.clientY - rect.top);
+            drawLine(lastX, lastY, x, y);
+            lastX = x;
+            lastY = y;
         }, { passive: false });
 
         window.addEventListener('touchend', () => {
             isDrawing = false;
         });
-
     </script>
-
 </body>
 </html>
