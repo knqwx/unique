@@ -45,6 +45,27 @@
             color: #64748b;
             margin-top: 6px;
         }
+
+        .canvas-container {
+            display: none;
+            background-color: #14161b;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .media-box {
+            background-color: #000000;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -55,9 +76,19 @@
         <input type="file" id="fileInput" accept="image/*">
     </div>
 
+    <div class="canvas-container" id="canvasContainer">
+        <div class="media-box" id="mediaBox">
+            <canvas id="previewCanvas"></canvas>
+        </div>
+    </div>
+
     <script>
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const mediaBox = document.getElementById('mediaBox');
+        const canvas = document.getElementById('previewCanvas');
+        const ctx = canvas.getContext('2d');
 
         dropZone.addEventListener('click', () => {
             fileInput.click();
@@ -65,9 +96,7 @@
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if (file) {
-                console.log('Selected file:', file.name);
-            }
+            if (file) handleImage(file);
         });
 
         ['dragenter', 'dragover'].forEach(eventName => {
@@ -89,10 +118,42 @@
         dropZone.addEventListener('drop', (e) => {
             const dt = e.dataTransfer;
             const file = dt.files[0];
-            if (file) {
-                console.log('Dropped file:', file.name);
-            }
+            if (file) handleImage(file);
         });
+
+        function handleImage(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    dropZone.style.display = 'none';
+                    canvasContainer.style.display = 'flex';
+
+                    const maxWidth = window.innerWidth * 0.88;
+                    const maxHeight = window.innerHeight * 0.88;
+
+                    let w = img.width;
+                    let h = img.height;
+
+                    if (w > maxWidth || h > maxHeight) {
+                        const ratio = Math.min(maxWidth / w, maxHeight / h);
+                        w = Math.round(w * ratio);
+                        h = Math.round(h * ratio);
+                    }
+
+                    mediaBox.style.width = w + 'px';
+                    mediaBox.style.height = h + 'px';
+
+                    canvas.width = w;
+                    canvas.height = h;
+
+                    ctx.clearRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
     </script>
 
 </body>
