@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <style>
@@ -11,146 +11,89 @@
             justify-content: center;
             align-items: center;
             overflow: hidden;
-            gap: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
+
         #fileInput {
             display: none;
         }
-        .upload-btn {
+
+        .drop-zone {
             background-color: #14161b;
-            color: #94a3b8;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            padding: 8px 16px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .upload-btn:hover {
-            color: #ffffff;
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-        .app-layout {
-            display: none;
-            gap: 16px;
-            align-items: flex-start;
-        }
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            background-color: #14161b;
-            padding: 12px;
+            border: 2px dashed rgba(255, 255, 255, 0.12);
             border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        .tool-btn {
-            background-color: #1a1d24;
-            color: #94a3b8;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            padding: 10px 14px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 0.85rem;
-            font-weight: 600;
+            padding: 40px 60px;
+            text-align: center;
             cursor: pointer;
-            outline: none;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            color: #94a3b8;
         }
-        .tool-btn:hover {
-            color: #ffffff;
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-        .tool-btn.active {
-            background-color: #252a35;
-            color: #ffffff;
+
+        .drop-zone:hover, .drop-zone.dragover {
             border-color: rgba(255, 255, 255, 0.3);
+            background-color: #181b22;
+            color: #ffffff;
         }
-        .canvas-container {
-            background-color: #14161b;
-            border-radius: 16px;
-            padding: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
+
+        .drop-zone-text {
+            font-size: 0.95rem;
+            font-weight: 500;
         }
-        .media-box {
-            background-color: #000000;
-            border-radius: 12px;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        canvas {
-            display: block;
+
+        .drop-zone-hint {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 6px;
         }
     </style>
 </head>
 <body>
-    <label class="upload-btn" id="btnLabel">
-        Choose File
-        <input type="file" id="fileInput" accept="image/*">
-    </label>
 
-    <div class="app-layout" id="appLayout">
-        <div class="sidebar">
-            <!-- Сайдбар пустой или для будущих инструментов -->
-        </div>
-        <div class="canvas-container">
-            <div class="media-box" id="mediaBox">
-                <canvas id="previewCanvas"></canvas>
-            </div>
-        </div>
+    <div class="drop-zone" id="dropZone">
+        <div class="drop-zone-text">Drag and drop file here or click to select</div>
+        <div class="drop-zone-hint">Supports any image files</div>
+        <input type="file" id="fileInput" accept="image/*">
     </div>
 
     <script>
+        const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
-        const btnLabel = document.getElementById('btnLabel');
-        const appLayout = document.getElementById('appLayout');
-        const mediaBox = document.getElementById('mediaBox');
-        const canvas = document.getElementById('previewCanvas');
-        const ctx = canvas.getContext('2d');
 
-        let originalImage = null;
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    originalImage = img;
-                    btnLabel.style.display = 'none';
-                    appLayout.style.display = 'flex';
-
-                    // Увеличенные лимиты для картинки
-                    const maxWidth = window.innerWidth * 0.88;
-                    const maxHeight = window.innerHeight * 0.88;
-
-                    let w = img.width;
-                    let h = img.height;
-
-                    if (w > maxWidth || h > maxHeight) {
-                        const ratio = Math.min(maxWidth / w, maxHeight / h);
-                        w = Math.round(w * ratio);
-                        h = Math.round(h * ratio);
-                    }
-
-                    mediaBox.style.width = w + 'px';
-                    mediaBox.style.height = h + 'px';
-
-                    canvas.width = w;
-                    canvas.height = h;
-
-                    ctx.clearRect(0, 0, w, h);
-                    ctx.drawImage(img, 0, 0, w, h);
-                }
-                img.src = event.target.result;
+            if (file) {
+                console.log('Selected file:', file.name);
             }
-            reader.readAsDataURL(file);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('dragover');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            if (file) {
+                console.log('Dropped file:', file.name);
+            }
         });
     </script>
+
 </body>
 </html>
