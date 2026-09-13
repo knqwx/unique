@@ -83,7 +83,6 @@
         }
         canvas {
             display: block;
-            cursor: crosshair;
         }
     </style>
 </head>
@@ -95,7 +94,7 @@
 
     <div class="app-layout" id="appLayout">
         <div class="sidebar">
-            <button class="tool-btn active" id="pencilBtn">Pencil</button>
+            <!-- Сайдбар пустой или для будущих инструментов -->
         </div>
         <div class="canvas-container">
             <div class="media-box" id="mediaBox">
@@ -112,7 +111,6 @@
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d');
 
-        let isDrawing = false;
         let originalImage = null;
 
         fileInput.addEventListener('change', (e) => {
@@ -127,8 +125,9 @@
                     btnLabel.style.display = 'none';
                     appLayout.style.display = 'flex';
 
-                    const maxWidth = window.innerWidth * 0.7;
-                    const maxHeight = window.innerHeight * 0.75;
+                    // Увеличенные лимиты для картинки
+                    const maxWidth = window.innerWidth * 0.88;
+                    const maxHeight = window.innerHeight * 0.88;
 
                     let w = img.width;
                     let h = img.height;
@@ -151,36 +150,6 @@
                 img.src = event.target.result;
             }
             reader.readAsDataURL(file);
-        });
-
-        function getMousePos(evt) {
-            const rect = canvas.getBoundingClientRect();
-            return {
-                x: evt.clientX - rect.left,
-                y: evt.clientY - rect.top
-            };
-        }
-
-        canvas.addEventListener('mousedown', (e) => {
-            isDrawing = true;
-            const pos = getMousePos(e);
-            ctx.beginPath();
-            ctx.moveTo(pos.x, pos.y);
-        });
-
-        canvas.addEventListener('mousemove', (e) => {
-            if (!isDrawing) return;
-            const pos = getMousePos(e);
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.lineTo(pos.x, pos.y);
-            ctx.stroke();
-        });
-
-        window.addEventListener('mouseup', () => {
-            isDrawing = false;
         });
     </script>
 </body>
