@@ -66,20 +66,35 @@
             justify-content: center;
             align-items: center;
             cursor: crosshair;
+            /* Важно: отключаем интерполяцию для всего контейнера,
+               чтобы изображение и рисование были пиксельными */
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            /* Чтобы контейнер не менял размер при рисовании */
+            flex-shrink: 0;
         }
 
         canvas {
             display: block;
+            /* Дублируем на всякий случай для самого элемента canvas */
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
         }
 
         .toolbar {
             display: flex;
-            gap: 10px;
+            gap: 15px;
             width: 100%;
             justify-content: space-between;
             align-items: center;
             color: #94a3b8;
             font-size: 0.85rem;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .btn {
@@ -97,6 +112,12 @@
             background-color: #30363d;
             color: #ffffff;
         }
+
+        .btn.active {
+            background-color: #3e4854;
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+        }
     </style>
 </head>
 <body>
@@ -112,8 +133,12 @@
             <canvas id="previewCanvas"></canvas>
         </div>
         <div class="toolbar">
-            <span>Зажмите мышь для рисования</span>
-            <button class="btn" id="clearBtn">Очистить рисунок</button>
+            <span>Пиксельное рисование</span>
+            <div class="controls">
+                <button class="btn active" id="pencilBtn">Карандаш</button>
+                <button class="btn" id="eraserBtn">Ластик</button>
+                <button class="btn" id="clearBtn">Очистить</button>
+            </div>
         </div>
     </div>
 
@@ -123,15 +148,27 @@
         const canvasContainer = document.getElementById('canvasContainer');
         const mediaBox = document.getElementById('mediaBox');
         const canvas = document.getElementById('previewCanvas');
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Оптимизация контекста
+
+        const pencilBtn = document.getElementById('pencilBtn');
+        const eraserBtn = document.getElementById('eraserBtn');
         const clearBtn = document.getElementById('clearBtn');
 
         let isDrawing = false;
         let originalImage = null;
+        let currentTool = 'pencil'; // 'pencil' или 'eraser'
+        let lastX = 0;
+        let lastY = 0;
 
-        dropZone.addEventListener('click', () => {
-            fileInput.click();
-        });
+        // Настройка контекста для четкости (пикселизации)
+        function setupContext() {
+            ctx.imageSmoothingEnabled = false;
+            ctx.mozImageSmoothingEnabled = false;
+            ctx.webkitImageSmoothingEnabled = false;
+            ctx.msImageSmoothingEnabled = false;
+        }
+
+        dropZone.addEventListener('click', () => fileInput.click());
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -169,12 +206,14 @@
                     dropZone.style.display = 'none';
                     canvasContainer.style.display = 'flex';
 
-                    const maxWidth = window.innerWidth * 0.88;
-                    const maxHeight = window.innerHeight * 0.82;
+                    // Ограничиваем размер превью, оставляя место по краям
+                    const maxWidth = window.innerWidth * 0.85;
+                    const maxHeight = window.innerHeight * 0.8;
 
                     let w = img.width;
                     let h = img.height;
 
+                    // Сохраняем пропорции, если картинка слишком большая
                     if (w > maxWidth || h > maxHeight) {
                         const ratio = Math.min(maxWidth / w, maxHeight / h);
                         w = Math.round(w * ratio);
@@ -184,9 +223,11 @@
                     mediaBox.style.width = w + 'px';
                     mediaBox.style.height = h + 'px';
 
+                    // Устанавливаем размер внутреннего холста
                     canvas.width = w;
                     canvas.height = h;
 
+                    setupContext();
                     redrawCanvas();
                 }
                 img.src = event.target.result;
@@ -196,77 +237,95 @@
 
         function redrawCanvas() {
             if (!originalImage) return;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Заливаем фон черным (на случай прозрачности в исходнике)
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Рисуем картинку
             ctx.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
+            setupContext(); // Повторно отключаем сглаживание после drawImage
         }
 
-        // Логика рисования (ручка)
+        // Инструменты
+        pencilBtn.addEventListener('click', () => {
+            currentTool = 'pencil';
+            pencilBtn.classList.add('active');
+            eraserBtn.classList.remove('active');
+        });
+
+        eraserBtn.addEventListener('click', () => {
+            currentTool = 'eraser';
+            eraserBtn.classList.add('active');
+            pencilBtn.classList.remove('active');
+        });
+
+        clearBtn.addEventListener('click', redrawCanvas);
+
+        // Логика рисования (пиксельная)
         function getMousePos(e) {
             const rect = canvas.getBoundingClientRect();
+            // Получаем координаты относительно элемента и округляем
+            // для получения точных пиксельных координат
             return {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
+                x: Math.floor(e.clientX - rect.left),
+                y: Math.floor(e.clientY - rect.top)
             };
         }
 
+        function draw(e) {
+            if (!isDrawing) return;
+            const pos = getMousePos(e);
+
+            // Рисуем один квадрат размером 1x1 пиксель
+            // (или больше, если нужно, но обычно для пиксель-арта это 1 пиксель)
+            if (currentTool === 'pencil') {
+                ctx.fillStyle = '#ffffff'; // Белый карандаш
+            } else {
+                // Ластик: берем цвет пикселя оригинала
+                // Т.к. мы рисуем поверх, это имитирует стирание
+                const pixelData = ctx.getImageData(pos.x, pos.y, 1, 1).data;
+                // Это работает корректно, т.к. мы делаем redraw Canvas
+                // с оригиналом в качестве фона
+                ctx.fillStyle = `rgb(${pixelData[0]}, ${pixelData[1]}, ${pixelData[2]})`;
+            }
+
+            // Рисуем пиксель
+            ctx.fillRect(pos.x, pos.y, 1, 1);
+        }
+
+        // Мышь
         canvas.addEventListener('mousedown', (e) => {
             isDrawing = true;
-            const pos = getMousePos(e);
-            ctx.beginPath();
-            ctx.moveTo(pos.x, pos.y);
-            ctx.strokeStyle = '#ef4444'; // Цвет ручки (красный для заметности, можно сменить на '#ffffff')
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
+            draw(e); // Рисуем точку при клике
         });
 
         canvas.addEventListener('mousemove', (e) => {
             if (!isDrawing) return;
-            const pos = getMousePos(e);
-            ctx.lineTo(pos.x, pos.y);
-            ctx.stroke();
+            draw(e);
         });
 
         window.addEventListener('mouseup', () => {
-            if (isDrawing) {
-                isDrawing = false;
-                ctx.closePath();
-            }
+            isDrawing = false;
         });
 
-        // Поддержка сенсорных экранов
+        // Тачскрин
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             isDrawing = true;
             const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            ctx.beginPath();
-            ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-        });
+            draw({ clientX: touch.clientX, clientY: touch.clientY });
+        }, { passive: false });
 
         canvas.addEventListener('touchmove', (e) => {
             if (!isDrawing) return;
             e.preventDefault();
             const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
-            ctx.stroke();
+            draw({ clientX: touch.clientX, clientY: touch.clientY });
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => {
+            isDrawing = false;
         });
 
-        canvas.addEventListener('touchend', () => {
-            if (isDrawing) {
-                isDrawing = false;
-                ctx.closePath();
-            }
-        });
-
-        clearBtn.addEventListener('click', () => {
-            redrawCanvas();
-        });
     </script>
 
 </body>
