@@ -225,6 +225,9 @@
         <div class="controls-group">
             <button id="gridBtn" class="active-grid">Grid: On</button>
         </div>
+        <div class="controls-group">
+            <button id="resetPosBtn">Reset Position</button>
+        </div>
     </div>
 
     <div class="app-container">
@@ -256,6 +259,7 @@
         const ctx = canvas.getContext('2d');
         const sizeInput = document.getElementById('sizeInput');
         const gridBtn = document.getElementById('gridBtn');
+        const resetPosBtn = document.getElementById('resetPosBtn');
         const colorPicker = document.getElementById('colorPicker');
         const workspace = document.getElementById('workspace');
         const canvasWrapper = document.getElementById('canvasWrapper');
@@ -298,6 +302,13 @@
             return null;
         }
 
+        function resetPosition() {
+            panX = (workspace.clientWidth - DISPLAY_SIZE) / 2;
+            panY = (workspace.clientHeight - DISPLAY_SIZE) / 2;
+            scale = 1;
+            updateTransform();
+        }
+
         function initCanvas() {
             let parsed = parseSize(sizeInput.value);
             if (!parsed) return;
@@ -312,11 +323,7 @@
 
             pixels = Array(gridHeight).fill(null).map(() => Array(gridWidth).fill('#ffffff'));
             
-            panX = (workspace.clientWidth - DISPLAY_SIZE) / 2;
-            panY = (workspace.clientHeight - DISPLAY_SIZE) / 2;
-            scale = 1;
-            updateTransform();
-
+            resetPosition();
             draw();
         }
 
@@ -399,7 +406,6 @@
             }
         }
 
-        // Исправленный зум относительно позиции курсора мыши
         workspace.addEventListener('wheel', (e) => {
             e.preventDefault();
 
@@ -408,12 +414,10 @@
 
             if (newScale < 0.1 || newScale > 30) return;
 
-            // Получаем координаты курсора относительно рабочего пространства
             const wsRect = workspace.getBoundingClientRect();
             const mouseX = e.clientX - wsRect.left;
             const mouseY = e.clientY - wsRect.top;
 
-            // Пересчитываем смещение так, чтобы точка под курсором оставалась на месте
             panX = mouseX - (mouseX - panX) * (newScale / scale);
             panY = mouseY - (mouseY - panY) * (newScale / scale);
             scale = newScale;
@@ -433,6 +437,8 @@
             gridBtn.classList.toggle('active-grid', isGridOn);
             draw();
         });
+
+        resetPosBtn.addEventListener('click', resetPosition);
 
         initCanvas();
     </script>
