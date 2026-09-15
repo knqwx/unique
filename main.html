@@ -66,7 +66,7 @@
             font-weight: 600;
         }
 
-        button {
+        button, select {
             background: #303642;
             border: 1px solid #484f58;
             color: #c9d1d9;
@@ -76,11 +76,16 @@
             font-weight: 600;
             font-size: 13px;
             transition: all 0.2s;
+            outline: none;
         }
 
-        button:hover {
+        button:hover, select:hover {
             background: #38404d;
             border-color: #58a6ff;
+        }
+
+        select {
+            padding: 5px 8px;
         }
 
         button.active-grid {
@@ -126,7 +131,7 @@
             position: absolute;
             right: 20px;
             top: 20px;
-            width: 230px;
+            width: 240px;
             background: #21262d;
             border: 1px solid #303642;
             border-radius: 8px;
@@ -143,7 +148,7 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: #8b949e;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
 
         .tool-container {
@@ -168,8 +173,8 @@
             color: #c9d1d9;
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 0 12px;
+            gap: 8px;
+            padding: 0 10px;
             cursor: pointer;
             font-size: 13px;
             transition: all 0.2s;
@@ -187,7 +192,7 @@
         }
 
         .brush-size-input {
-            width: 50px;
+            width: 46px;
             height: 38px;
             background: #303642;
             border: 1px solid #484f58;
@@ -196,7 +201,7 @@
             text-align: center;
             font-size: 13px;
             outline: none;
-            flex: 0 0 50px;
+            flex: 0 0 46px;
         }
 
         .brush-size-input:focus {
@@ -214,6 +219,17 @@
             border-color: #58a6ff;
         }
 
+        .shape-select {
+            width: 100%;
+            height: 38px;
+            background: #303642;
+            border: 1px solid #484f58;
+            border-radius: 6px;
+            color: #c9d1d9;
+            font-size: 13px;
+            padding: 0 8px;
+        }
+
         .color-dropdown {
             background: #161b22;
             border: 1px solid #303642;
@@ -222,7 +238,7 @@
             gap: 8px;
             display: flex;
             flex-direction: column;
-            margin-top: 6px;
+            margin-top: 4px;
         }
 
         .color-row {
@@ -347,25 +363,40 @@
             <div class="tool-container">
                 <div class="tool-row">
                     <button class="tool-btn active" id="pencilBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
                         Pencil
                     </button>
                     <input type="text" class="brush-size-input" id="pencilSizeInput" value="1" maxlength="3" title="Размер кисти карандаша">
                 </div>
                 <div class="tool-row">
                     <button class="tool-btn" id="eraserBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L20 20Z"></path><path d="M17 17L7 7"></path></svg>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L20 20Z"></path><path d="M17 17L7 7"></path></svg>
                         Eraser
                     </button>
                     <input type="text" class="brush-size-input" id="eraserSizeInput" value="1" maxlength="3" title="Размер кисти ластика">
                 </div>
+                <button class="tool-btn" id="bucketBtn">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 11l-8-8-8.5 8.5a2.83 2.83 0 0 0 0 4l4 4a2.83 2.83 0 0 0 4 0L19 11z"></path><path d="M15 5l4 4"></path><path d="M2 22h20"></path></svg>
+                    Paint Bucket
+                </button>
+                <div class="tool-row">
+                    <button class="tool-btn" id="shapeBtn">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                        Shape
+                    </button>
+                    <select class="shape-select" id="shapeType">
+                        <option value="rect">Rect</option>
+                        <option value="circle">Circle</option>
+                        <option value="line">Line</option>
+                    </select>
+                </div>
                 <div class="tool-row">
                     <button class="tool-btn" id="eyedropperBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22l5.5-1.5L21.5 6.5l-3-3L5 16.5L2 22z"></path><path d="M13.5 6.5l4 4"></path></svg>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22l5.5-1.5L21.5 6.5l-3-3L5 16.5L2 22z"></path><path d="M13.5 6.5l4 4"></path></svg>
                         Eyedropper
                     </button>
                     <button class="tool-btn icon-only-btn" id="uploadImageBtn" title="Загрузить картинку для пипетки">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                     </button>
                 </div>
                 <div class="color-dropdown" id="colorDropdown">
@@ -407,6 +438,9 @@
 
         const pencilBtn = document.getElementById('pencilBtn');
         const eraserBtn = document.getElementById('eraserBtn');
+        const bucketBtn = document.getElementById('bucketBtn');
+        const shapeBtn = document.getElementById('shapeBtn');
+        const shapeTypeSelect = document.getElementById('shapeType');
         const eyedropperBtn = document.getElementById('eyedropperBtn');
         const uploadImageBtn = document.getElementById('uploadImageBtn');
         const imageInput = document.getElementById('imageInput');
@@ -425,32 +459,31 @@
         let isDrawing = false;
         let isPanning = false;
         let currentColor = '#000000';
-        let currentTool = 'pencil'; // 'pencil', 'eraser', 'eyedropper'
+        let currentTool = 'pencil'; // 'pencil', 'eraser', 'bucket', 'shape', 'eyedropper'
         
-        const DISPLAY_SIZE = 512;
+        const DISPLAY_SIZE = 768; // Увеличено с 512 до 768 для удобства
         let panX = 0;
         let panY = 0;
         let scale = 1;
         let startX = 0;
         let startY = 0;
 
+        let shapeStartX = 0;
+        let shapeStartY = 0;
+        let pixelsBackup = null; // Для превью фигур
+
         window.addEventListener('contextmenu', (e) => e.preventDefault());
 
         function sanitizeInput(input, fallback, maxVal = 128) {
             let val = input.value.replace(/[^0-9]/g, '');
-            
             if (val.startsWith('0')) {
                 val = val.replace(/^0+/, '');
             }
-
             if (val !== '') {
                 let num = parseInt(val, 10);
-                if (num > maxVal) {
-                    num = maxVal;
-                }
+                if (num > maxVal) num = maxVal;
                 val = num.toString();
             }
-
             input.value = val;
             return val === '' ? fallback : parseInt(val, 10);
         }
@@ -525,7 +558,19 @@
         canvas.addEventListener('mousedown', (e) => {
             if (e.button === 0) {
                 isDrawing = true;
-                handleToolAction(e);
+                const { x, y } = getCursorPosition(e);
+                if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
+                    if (currentTool === 'bucket') {
+                        floodFill(x, y, pixels[y][x], currentColor);
+                        draw();
+                    } else if (currentTool === 'shape') {
+                        shapeStartX = x;
+                        shapeStartY = y;
+                        pixelsBackup = pixels.map(row => [...row]);
+                    } else {
+                        handleToolAction(e);
+                    }
+                }
             } else if (e.button === 2) {
                 isPanning = true;
                 startX = e.clientX - panX;
@@ -534,13 +579,25 @@
         });
 
         window.addEventListener('mouseup', (e) => {
-            if (e.button === 0) isDrawing = false;
+            if (e.button === 0 && isDrawing) {
+                isDrawing = false;
+                pixelsBackup = null;
+            }
             if (e.button === 2) isPanning = false;
         });
 
         window.addEventListener('mousemove', (e) => {
             if (isDrawing) {
-                handleToolAction(e);
+                const { x, y } = getCursorPosition(e);
+                if (currentTool === 'shape') {
+                    if (pixelsBackup) {
+                        pixels = pixelsBackup.map(row => [...row]);
+                        drawShape(shapeStartX, shapeStartY, x, y, shapeTypeSelect.value, currentColor);
+                        draw();
+                    }
+                } else {
+                    handleToolAction(e);
+                }
             } else if (isPanning) {
                 panX = e.clientX - startX;
                 panY = e.clientY - startY;
@@ -565,28 +622,12 @@
         }
 
         function applyBrush(cx, cy, size, color) {
-            let half = Math.floor(size / 2);
-            let changed = false;
-
-            for (let dy = -half; dy <= half; dy++) {
-                for (let dx = -half; dx <= half; dx++) {
-                    // Если размер четный, чуть корректируем логику для симметрии или используем стандартный квадратный маркер кисти
-                    let nx = cx + dx;
-                    let ny = cy + dy;
-                    if (size % 2 === 0 && dx >= half) continue; // упрощение для симметрии четных размеров
-                    if (size % 2 === 0 && dy >= half) continue;
-
-                    // Простой подход: квадратная кисть заданного размера
-                    // Либо полная матрица:
-                }
-            }
-
-            // Перепишем под удобную квадратную кисть от центра:
             let startX = cx - Math.floor((size - 1) / 2);
             let endX = cx + Math.floor(size / 2);
             let startY = cy - Math.floor((size - 1) / 2);
             let endY = cy + Math.floor(size / 2);
 
+            let changed = false;
             for (let y = startY; y <= endY; y++) {
                 for (let x = startX; x <= endX; x++) {
                     if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
@@ -595,8 +636,94 @@
                     }
                 }
             }
-
             if (changed) draw();
+        }
+
+        // Заливка (Paint Bucket / Flood Fill)
+        function floodFill(startX, startY, targetColor, fillColor) {
+            if (targetColor === fillColor) return;
+            const queue = [[startX, startY]];
+            const visited = Array(gridHeight).fill(null).map(() => Array(gridWidth).fill(false));
+
+            while (queue.length > 0) {
+                let [x, y] = queue.pop();
+
+                if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) continue;
+                if (visited[y][x]) continue;
+                if (pixels[y][x] !== targetColor) continue;
+
+                pixels[y][x] = fillColor;
+                visited[y][x] = true;
+
+                queue.push([x + 1, y]);
+                queue.push([x - 1, y]);
+                queue.push([x, y + 1]);
+                queue.push([x, y - 1]);
+            }
+        }
+
+        // Отрисовка фигур (Прямоугольник, Круг, Линия)
+        function drawShape(x1, y1, x2, y2, type, color) {
+            if (type === 'rect') {
+                let minX = Math.min(x1, x2);
+                let maxX = Math.max(x1, x2);
+                let minY = Math.min(y1, y2);
+                let maxY = Math.max(y1, y2);
+
+                for (let y = minY; y <= maxY; y++) {
+                    for (let x = minX; x <= maxX; x++) {
+                        if (x === minX || x === maxX || y === minY || y === maxY) {
+                            if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
+                                pixels[y][x] = color;
+                            }
+                        }
+                    }
+                }
+            } else if (type === 'circle') {
+                let cx = (x1 + x2) / 2;
+                let cy = (y1 + y2) / 2;
+                let rx = Math.abs(x2 - x1) / 2;
+                let ry = Math.abs(y2 - y1) / 2;
+
+                // Упрощенный алгоритм для пиксельного эллипса/круга
+                for (let y = 0; y < gridHeight; y++) {
+                    for (let x = 0; x < gridWidth; x++) {
+                        let dx = (x - cx) / (rx || 0.1);
+                        let dy = (y - cy) / (ry || 0.1);
+                        // Проверяем границу кольца
+                        let dist = dx * dx + dy * dy;
+                        if (dist <= 1.0 && dist >= 0.6) {
+                            pixels[y][x] = color;
+                        }
+                    }
+                }
+            } else if (type === 'line') {
+                // Алгоритм Брезенхэма для линий
+                let dx = Math.abs(x2 - x1);
+                let dy = Math.abs(y2 - y1);
+                let sx = (x1 < x2) ? 1 : -1;
+                let sy = (y1 < y2) ? 1 : -1;
+                let err = dx - dy;
+
+                let currX = x1;
+                let currY = y1;
+
+                while (true) {
+                    if (currX >= 0 && currX < gridWidth && currY >= 0 && currY < gridHeight) {
+                        pixels[currY][currX] = color;
+                    }
+                    if (currX === x2 && currY === y2) break;
+                    let e2 = 2 * err;
+                    if (e2 > -dy) {
+                        err -= dy;
+                        currX += sx;
+                    }
+                    if (e2 < dx) {
+                        err += dx;
+                        currY += sy;
+                    }
+                }
+            }
         }
 
         function setTool(toolName) {
@@ -604,15 +731,21 @@
 
             pencilBtn.classList.remove('active');
             eraserBtn.classList.remove('active');
+            bucketBtn.classList.remove('active');
+            shapeBtn.classList.remove('active');
             eyedropperBtn.classList.remove('active');
 
             if (toolName === 'pencil') pencilBtn.classList.add('active');
             if (toolName === 'eraser') eraserBtn.classList.add('active');
+            if (toolName === 'bucket') bucketBtn.classList.add('active');
+            if (toolName === 'shape') shapeBtn.classList.add('active');
             if (toolName === 'eyedropper') eyedropperBtn.classList.add('active');
         }
 
         pencilBtn.addEventListener('click', () => setTool('pencil'));
         eraserBtn.addEventListener('click', () => setTool('eraser'));
+        bucketBtn.addEventListener('click', () => setTool('bucket'));
+        shapeBtn.addEventListener('click', () => setTool('shape'));
         eyedropperBtn.addEventListener('click', () => setTool('eyedropper'));
 
         // Обработка полей размера кисти
@@ -665,7 +798,7 @@
             colorPicker.value = hex;
 
             imageModal.classList.remove('open');
-            setTool('pencil'); // Автоматически меняем на карандаш после выбора цвета
+            setTool('pencil');
         });
 
         workspace.addEventListener('wheel', (e) => {
