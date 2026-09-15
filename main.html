@@ -17,36 +17,42 @@
             width: 100vw;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
             font-family: 'Segoe UI', sans-serif;
             color: #c9d1d9;
+            overflow: hidden;
         }
 
-        .controls {
-            margin-bottom: 20px;
-            display: flex;
-            gap: 12px;
-            align-items: center;
+        /* Верхняя панель */
+        .top-bar {
+            height: 50px;
             background: #21262d;
-            padding: 10px 16px;
-            border-radius: 8px;
-            border: 1px solid #303642;
+            border-bottom: 1px solid #303642;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+        }
+
+        .controls-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
         }
 
         label {
-            font-size: 14px;
+            font-size: 13px;
+            color: #8b949e;
         }
 
         input[type="number"] {
             background: #303642;
             border: 1px solid #484f58;
             color: #c9d1d9;
-            padding: 6px 10px;
+            padding: 5px 8px;
             border-radius: 4px;
-            width: 70px;
+            width: 60px;
             outline: none;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         input:focus {
@@ -54,23 +60,81 @@
         }
 
         button {
-            background: #58a6ff;
-            color: #ffffff;
-            border: none;
-            padding: 6px 14px;
+            background: #303642;
+            border: 1px solid #484f58;
+            color: #c9d1d9;
+            padding: 5px 12px;
             border-radius: 4px;
             cursor: pointer;
             font-weight: 600;
-            font-size: 14px;
-            transition: background 0.2s, opacity 0.2s;
+            font-size: 13px;
+            transition: all 0.2s;
         }
 
         button:hover {
-            opacity: 0.9;
+            background: #38404d;
+            border-color: #58a6ff;
         }
 
         button.active-grid {
-            background: #3fb950;
+            background: #238636;
+            border-color: #2ea043;
+            color: #ffffff;
+        }
+
+        /* Основной контейнер под шапкой */
+        .app-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 50px);
+        }
+
+        /* Левая панель инструментов */
+        .sidebar {
+            width: 60px;
+            background: #21262d;
+            border-right: 1px solid #303642;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 15px;
+            gap: 10px;
+        }
+
+        .tool-btn {
+            width: 40px;
+            height: 40px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            color: #8b949e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tool-btn:hover {
+            background: #303642;
+            color: #c9d1d9;
+        }
+
+        .tool-btn.active {
+            background: #38404d;
+            color: #58a6ff;
+            border-color: #484f58;
+        }
+
+        /* Рабочая область */
+        .workspace {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #252a33;
+            overflow: auto;
+            padding: 20px;
         }
 
         .canvas-wrapper {
@@ -85,27 +149,43 @@
             display: block;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
+            cursor: crosshair;
         }
     </style>
 </head>
 <body>
 
-    <div class="controls">
-        <label for="sizeInput">Size:</label>
-        <input type="number" id="sizeInput" value="32" min="1" max="128">
-        <button id="applyBtn">Create Canvas</button>
-        <button id="gridBtn" class="active-grid">Grid: On</button>
+    <!-- Верхняя панель с настройками холста и сетки -->
+    <div class="top-bar">
+        <div class="controls-group">
+            <label for="sizeInput">Size:</label>
+            <input type="number" id="sizeInput" value="32" min="1" max="128">
+        </div>
+        <div class="controls-group">
+            <button id="gridBtn" class="active-grid">Grid: On</button>
+        </div>
     </div>
 
-    <div class="canvas-wrapper">
-        <canvas id="myCanvas"></canvas>
+    <!-- Основной макет: панель инструментов слева, холст по центру -->
+    <div class="app-container">
+        <div class="sidebar">
+            <button class="tool-btn active" title="Pencil">
+                <!-- Иконка карандаша -->
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
+            </button>
+        </div>
+
+        <div class="workspace">
+            <div class="canvas-wrapper">
+                <canvas id="myCanvas"></canvas>
+            </div>
+        </div>
     </div>
 
     <script>
         const canvas = document.getElementById('myCanvas');
         const ctx = canvas.getContext('2d');
         const sizeInput = document.getElementById('sizeInput');
-        const applyBtn = document.getElementById('applyBtn');
         const gridBtn = document.getElementById('gridBtn');
 
         let gridSize = 32;
@@ -116,11 +196,10 @@
             let size = parseInt(sizeInput.value);
             
             if (isNaN(size) || size < 1) size = 1;
-            if (size > 128) size = 128; // Ограничим пока до 128 для удобства сетки
+            if (size > 128) size = 128;
             sizeInput.value = size;
             gridSize = size;
 
-            // Вычисляем размер пикселя на экране так, чтобы холст всегда был примерно 512x512 пикселей
             const displaySize = 512;
             const pixelSize = Math.floor(displaySize / gridSize);
             
@@ -129,7 +208,6 @@
             canvas.style.width = `${canvas.width}px`;
             canvas.style.height = `${canvas.height}px`;
 
-            // Инициализируем массив белым цветом
             pixels = Array(gridSize).fill(null).map(() => Array(gridSize).fill('#ffffff'));
             
             draw();
@@ -139,7 +217,6 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const pixelSize = canvas.width / gridSize;
 
-            // Отрисовка пикселей
             for (let y = 0; y < gridSize; y++) {
                 for (let x = 0; x < gridSize; x++) {
                     ctx.fillStyle = pixels[y][x];
@@ -147,14 +224,12 @@
                 }
             }
 
-            // Отрисовка сетки
-            if (isGridOn && pixelSize >= 4) { // Сетка показывается, если пиксели достаточно большие
+            if (isGridOn && pixelSize >= 4) {
                 ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
                 ctx.lineWidth = 1;
                 
                 ctx.beginPath();
                 for (let i = 0; i <= gridSize; i++) {
-                    // Рисуем линии по реальным пикселям экрана
                     let pos = i * pixelSize;
                     ctx.moveTo(pos, 0);
                     ctx.lineTo(pos, canvas.height);
@@ -165,12 +240,8 @@
             }
         }
 
-        applyBtn.addEventListener('click', initCanvas);
-        sizeInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                initCanvas();
-            }
-        });
+        // Автоматическое обновление размера холста при изменении цифры в инпуте
+        sizeInput.addEventListener('input', initCanvas);
 
         gridBtn.addEventListener('click', () => {
             isGridOn = !isGridOn;
