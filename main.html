@@ -110,6 +110,15 @@
             color: #ffffff;
         }
 
+        .save-action-btn {
+            background: #238636 !important;
+            border-color: #2ea043 !important;
+            color: #ffffff !important;
+        }
+        .save-action-btn:hover {
+            background: #2ea043 !important;
+        }
+
         .app-container {
             display: flex;
             flex: 1;
@@ -312,6 +321,7 @@
             display: grid;
             grid-template-columns: repeat(8, 1fr);
             gap: 4px;
+            min-height: 26px;
         }
 
         .color-swatch {
@@ -328,6 +338,14 @@
             border-color: #58a6ff;
         }
 
+        .empty-palette-text {
+            font-size: 11px;
+            color: #484f58;
+            grid-column: span 8;
+            text-align: center;
+            padding: 4px 0;
+        }
+
         .add-saved-btn {
             background: none;
             border: none;
@@ -342,8 +360,8 @@
             border: none;
         }
 
-        /* Модальное окно для выбора цвета с картинки */
-        .image-picker-modal {
+        /* Общие стили модальных окон */
+        .modal-overlay {
             display: none;
             position: fixed;
             top: 0;
@@ -357,7 +375,7 @@
             flex-direction: column;
         }
 
-        .image-picker-modal.open {
+        .modal-overlay.open {
             display: flex;
         }
 
@@ -406,6 +424,51 @@
             cursor: crosshair;
             object-fit: contain;
         }
+
+        /* Стили модального окна сохранения */
+        .save-modal-content {
+            width: 340px;
+            gap: 16px;
+        }
+
+        .save-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .save-form-group label {
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        .save-form-group select, .save-form-group input {
+            width: 100%;
+            height: 38px;
+            background: #303642;
+            border: 1px solid #484f58;
+            border-radius: 6px;
+            color: #c9d1d9;
+            padding: 0 10px;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .save-form-group select:focus, .save-form-group input:focus {
+            border-color: #58a6ff;
+        }
+
+        .save-modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .save-modal-actions button {
+            flex: 1;
+            height: 38px;
+            justify-content: center;
+        }
     </style>
 </head>
 <body>
@@ -432,6 +495,10 @@
             </button>
         </div>
         <div class="controls-group">
+            <button id="saveModalOpenBtn" class="save-action-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                Save
+            </button>
             <button id="resetPosBtn">Reset Position</button>
         </div>
     </div>
@@ -513,7 +580,7 @@
     <input type="file" id="imageInput" accept="image/*" style="display: none;">
 
     <!-- Модальное окно для выбора цвета с картинки -->
-    <div class="image-picker-modal" id="imageModal">
+    <div class="modal-overlay" id="imageModal">
         <div class="modal-content">
             <div class="modal-header">
                 <span class="modal-title">Кликните по картинке, чтобы выбрать цвет</span>
@@ -521,6 +588,34 @@
             </div>
             <div class="image-container">
                 <img id="sourceImage" alt="Upload Image">
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно экспорта / сохранения -->
+    <div class="modal-overlay" id="saveModal">
+        <div class="modal-content save-modal-content">
+            <div class="modal-header">
+                <span class="modal-title">Export Image</span>
+                <button id="closeSaveModalBtn">✕</button>
+            </div>
+            <div class="save-form-group">
+                <label>Format</label>
+                <select id="exportFormat">
+                    <option value="png">PNG</option>
+                    <option value="jpg">JPG</option>
+                    <option value="ico">ICO</option>
+                    <option value="svg">SVG</option>
+                </select>
+            </div>
+            <div class="save-form-group">
+                <label>Quality / Resolution</label>
+                <select id="exportQuality">
+                    <!-- Заполняется динамически -->
+                </select>
+            </div>
+            <div class="save-modal-actions">
+                <button id="confirmSaveBtn" class="save-action-btn">Download</button>
             </div>
         </div>
     </div>
@@ -560,13 +655,19 @@
         const closeModalBtn = document.getElementById('closeModalBtn');
         const sourceImage = document.getElementById('sourceImage');
 
+        const saveModal = document.getElementById('saveModal');
+        const saveModalOpenBtn = document.getElementById('saveModalOpenBtn');
+        const closeSaveModalBtn = document.getElementById('closeSaveModalBtn');
+        const confirmSaveBtn = document.getElementById('confirmSaveBtn');
+        const exportFormat = document.getElementById('exportFormat');
+        const exportQuality = document.getElementById('exportQuality');
+
         let gridWidth = 32;
         let gridHeight = 32;
         let isGridOn = true;
         let isCenterOn = false;
         let pixels = [];
         
-        // История для Undo / Redo
         let history = [];
         let historyIndex = -1;
         const MAX_HISTORY = 30;
@@ -587,9 +688,9 @@
         let shapeStartY = 0;
         let pixelsBeforeShape = null;
 
-        // Цветовые палитры
-        let recentColors = ['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
-        let savedColors = ['#000000', '#ffffff', '#21262d', '#58a6ff', '#238636', '#da3633', '#f0883e', '#8957e5'];
+        // Палитры по умолчанию чистые
+        let recentColors = [];
+        let savedColors = [];
 
         window.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -639,7 +740,6 @@
             if (historyIndex < history.length - 1) {
                 history = history.slice(0, historyIndex + 1);
             }
-            // Клонируем матрицу пикселей
             const snapshot = pixels.map(row => [...row]);
             history.push(snapshot);
             if (history.length > MAX_HISTORY) {
@@ -747,7 +847,7 @@
                         shapeStartY = y;
                         pixelsBeforeShape = pixels.map(row => [...row]);
                     } else {
-                        handleToolAction(e, true);
+                        handleToolAction(e);
                     }
                 }
             } else if (e.button === 2) {
@@ -781,7 +881,7 @@
                         draw();
                     }
                 } else {
-                    handleToolAction(e, false);
+                    handleToolAction(e);
                 }
             } else if (isPanning) {
                 panX = e.clientX - startX;
@@ -790,7 +890,7 @@
             }
         });
 
-        function handleToolAction(e, isFirstClick) {
+        function handleToolAction(e) {
             const { x, y } = getCursorPosition(e);
             if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
                 if (currentTool === 'pencil') {
@@ -916,6 +1016,7 @@
         function setCurrentColor(hex) {
             currentColor = hex;
             colorPicker.value = hex;
+            // Добавляем цвет в recent только если реально им рисуем или выбираем
             addRecentColor(hex);
         }
 
@@ -928,30 +1029,38 @@
 
         function renderPalettes() {
             recentColorsGrid.innerHTML = '';
-            recentColors.forEach(hex => {
-                const swatch = document.createElement('div');
-                swatch.className = 'color-swatch';
-                swatch.style.backgroundColor = hex;
-                swatch.title = hex;
-                swatch.addEventListener('click', () => {
-                    currentColor = hex;
-                    colorPicker.value = hex;
+            if (recentColors.length === 0) {
+                recentColorsGrid.innerHTML = '<div class="empty-palette-text">No recent colors</div>';
+            } else {
+                recentColors.forEach(hex => {
+                    const swatch = document.createElement('div');
+                    swatch.className = 'color-swatch';
+                    swatch.style.backgroundColor = hex;
+                    swatch.title = hex;
+                    swatch.addEventListener('click', () => {
+                        currentColor = hex;
+                        colorPicker.value = hex;
+                    });
+                    recentColorsGrid.appendChild(swatch);
                 });
-                recentColorsGrid.appendChild(swatch);
-            });
+            }
 
             savedColorsGrid.innerHTML = '';
-            savedColors.forEach(hex => {
-                const swatch = document.createElement('div');
-                swatch.className = 'color-swatch';
-                swatch.style.backgroundColor = hex;
-                swatch.title = hex;
-                swatch.addEventListener('click', () => {
-                    currentColor = hex;
-                    colorPicker.value = hex;
+            if (savedColors.length === 0) {
+                savedColorsGrid.innerHTML = '<div class="empty-palette-text">No saved colors</div>';
+            } else {
+                savedColors.forEach(hex => {
+                    const swatch = document.createElement('div');
+                    swatch.className = 'color-swatch';
+                    swatch.style.backgroundColor = hex;
+                    swatch.title = hex;
+                    swatch.addEventListener('click', () => {
+                        currentColor = hex;
+                        colorPicker.value = hex;
+                    });
+                    savedColorsGrid.appendChild(swatch);
                 });
-                savedColorsGrid.appendChild(swatch);
-            });
+            }
         }
 
         saveCurrentColorBtn.addEventListener('click', () => {
@@ -1033,6 +1142,97 @@
             setTool('pencil');
         });
 
+        // Модальное окно сохранения
+        function populateQualityOptions() {
+            exportQuality.innerHTML = '';
+            const baseW = gridWidth;
+            const baseH = gridHeight;
+
+            // Дефолтный размер холста
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = `${baseW}x${baseH}`;
+            defaultOpt.textContent = `Canvas Size (${baseW} × ${baseH})`;
+            exportQuality.appendChild(defaultOpt);
+
+            // Разрешения выше холста (2K, 4K и т.д., пропорциональные или стандартные)
+            const standardQualities = [
+                { name: 'HD (1280 × 720)', w: 1280, h: 720 },
+                { name: 'Full HD (1920 × 1080)', w: 1920, h: 1080 },
+                { name: '2K (2560 × 1440)', w: 2560, h: 1440 },
+                { name: '4K UHD (3840 × 2160)', w: 3840, h: 2160 }
+            ];
+
+            standardQualities.forEach(q => {
+                if (q.w >= baseW || q.h >= baseH) {
+                    const opt = document.createElement('option');
+                    opt.value = `${q.w}x${q.h}`;
+                    opt.textContent = q.name;
+                    exportQuality.appendChild(opt);
+                }
+            });
+        }
+
+        saveModalOpenBtn.addEventListener('click', () => {
+            populateQualityOptions();
+            saveModal.classList.add('open');
+        });
+
+        closeSaveModalBtn.addEventListener('click', () => {
+            saveModal.classList.remove('open');
+        });
+
+        confirmSaveBtn.addEventListener('click', () => {
+            const format = exportFormat.value;
+            const [qW, qH] = exportQuality.value.split('x').map(Number);
+
+            // Создаем временный холст нужного разрешения для четкого экспорта пикселей
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = qW;
+            exportCanvas.height = qH;
+            const eCtx = exportCanvas.getContext('2d');
+            eCtx.imageSmoothingEnabled = false;
+
+            const cellW = qW / gridWidth;
+            const cellH = qH / gridHeight;
+
+            for (let y = 0; y < gridHeight; y++) {
+                for (let x = 0; x < gridWidth; x++) {
+                    eCtx.fillStyle = pixels[y][x];
+                    eCtx.fillRect(Math.floor(x * cellW), Math.floor(y * cellH), Math.ceil(cellW), Math.ceil(cellH));
+                }
+            }
+
+            let link = document.createElement('a');
+            link.download = `pixel-art-${qW}x${qH}.${format}`;
+
+            if (format === 'svg') {
+                // Генерация SVG
+                let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${gridWidth} ${gridHeight}" width="${qW}" height="${qH}">`;
+                for (let y = 0; y < gridHeight; y++) {
+                    for (let x = 0; x < gridWidth; x++) {
+                        svgContent += `<rect x="${x}" y="${y}" width="1" height="1" fill="${pixels[y][x]}"/>`;
+                    }
+                }
+                svgContent += `</svg>`;
+                const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+                link.href = URL.createObjectURL(blob);
+                link.click();
+            } else if (format === 'ico') {
+                // Для ICO экспортируем как PNG (браузеры отлично поддерживают PNG-контейнеры в ICO или конвертируют)
+                link.href = exportCanvas.toDataURL('image/png');
+                link.download = `pixel-art-${qW}x${qH}.ico`;
+                link.click();
+            } else if (format === 'jpg') {
+                link.href = exportCanvas.toDataURL('image/jpeg', 0.95);
+                link.click();
+            } else {
+                link.href = exportCanvas.toDataURL('image/png');
+                link.click();
+            }
+
+            saveModal.classList.remove('open');
+        });
+
         workspace.addEventListener('wheel', (e) => {
             e.preventDefault();
 
@@ -1093,7 +1293,6 @@
         undoBtn.addEventListener('click', undo);
         redoBtn.addEventListener('click', redo);
 
-        // Горячие клавиши Ctrl+Z и Ctrl+Y
         window.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
                 e.preventDefault();
