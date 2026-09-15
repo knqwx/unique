@@ -22,7 +22,6 @@
             overflow: hidden;
         }
 
-        /* Верхняя панель */
         .top-bar {
             height: 50px;
             background: #21262d;
@@ -84,7 +83,6 @@
             color: #ffffff;
         }
 
-        /* Основной контейнер */
         .app-container {
             display: flex;
             flex: 1;
@@ -93,7 +91,6 @@
             overflow: hidden;
         }
 
-        /* Рабочая область */
         .workspace {
             flex: 1;
             background-color: #252a33;
@@ -119,7 +116,6 @@
             cursor: crosshair;
         }
 
-        /* Правая панель */
         .tools-panel {
             position: absolute;
             right: 20px;
@@ -221,7 +217,6 @@
 </head>
 <body>
 
-    <!-- Верхняя панель -->
     <div class="top-bar">
         <div class="controls-group">
             <label for="sizeInput">Size:</label>
@@ -232,7 +227,6 @@
         </div>
     </div>
 
-    <!-- Основной макет -->
     <div class="app-container">
         <div class="workspace" id="workspace">
             <div class="canvas-wrapper" id="canvasWrapper">
@@ -240,7 +234,6 @@
             </div>
         </div>
 
-        <!-- Правая панель -->
         <div class="tools-panel">
             <div class="panel-title">Tools</div>
             <div class="tool-container">
@@ -275,15 +268,14 @@
         let isPanning = false;
         let currentColor = '#000000';
         
-        const DISPLAY_SIZE = 512;
+        const DISPLAY_SIZE = 512; // Физический размер холста на экране
         let panX = 0;
         let panY = 0;
+        let scale = 1;
         let startX = 0;
         let startY = 0;
 
-        window.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-        });
+        window.addEventListener('contextmenu', (e) => e.preventDefault());
 
         function parseSize(str) {
             str = str.replace(/\s+/g, '').toLowerCase();
@@ -313,6 +305,7 @@
             gridWidth = parsed.width;
             gridHeight = parsed.height;
 
+            // Холст всегда одного физического размера
             canvas.width = DISPLAY_SIZE;
             canvas.height = DISPLAY_SIZE;
             canvas.style.width = `${DISPLAY_SIZE}px`;
@@ -322,13 +315,14 @@
             
             panX = (workspace.clientWidth - DISPLAY_SIZE) / 2;
             panY = (workspace.clientHeight - DISPLAY_SIZE) / 2;
-            updateCanvasTransform();
+            scale = 1;
+            updateTransform();
 
             draw();
         }
 
-        function updateCanvasTransform() {
-            canvasWrapper.style.transform = `translate(${panX}px, ${panY}px)`;
+        function updateTransform() {
+            canvasWrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
         }
 
         function draw() {
@@ -394,7 +388,7 @@
             } else if (isPanning) {
                 panX = e.clientX - startX;
                 panY = e.clientY - startY;
-                updateCanvasTransform();
+                updateTransform();
             }
         });
 
@@ -406,28 +400,24 @@
             }
         }
 
+        // Правильный зум относительно курсора с использованием scale
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
 
-            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-            let newWidth = canvas.width * zoomFactor;
+            const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
+            let newScale = scale * zoomFactor;
 
-            if (newWidth < 128 || newWidth > 4096) return;
+            if (newScale < 0.2 || newScale > 20) return;
 
-            const rect = canvas.getBoundingClientRect();
+            const rect = canvasWrapper.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
             panX = e.clientX - mouseX * zoomFactor;
             panY = e.clientY - mouseY * zoomFactor;
+            scale = newScale;
 
-            canvas.width = newWidth;
-            canvas.height = newWidth;
-            canvas.style.width = `${newWidth}px`;
-            canvas.style.height = `${newWidth}px`;
-
-            updateCanvasTransform();
-            draw();
+            updateTransform();
         }, { passive: false });
 
         colorPicker.addEventListener('input', (e) => {
@@ -438,13 +428,8 @@
 
         gridBtn.addEventListener('click', () => {
             isGridOn = !isGridOn;
-            if (isGridOn) {
-                gridBtn.textContent = 'Grid: On';
-                gridBtn.classList.add('active-grid');
-            } else {
-                gridBtn.textContent = 'Grid: Off';
-                gridBtn.classList.remove('active-grid');
-            }
+            gridBtn.textContent = isGridOn ? 'Grid: On' : 'Grid: Off';
+            gridBtn.classList.toggle('active-grid', isGridOn);
             draw();
         });
 
