@@ -44,7 +44,8 @@
             color: #8b949e;
         }
 
-        input[type="number"] {
+        /* Поле ввода без стрелочек (тип text вместо number) */
+        input[type="text"] {
             background: #303642;
             border: 1px solid #484f58;
             color: #c9d1d9;
@@ -55,7 +56,7 @@
             font-size: 13px;
         }
 
-        input:focus {
+        input[type="text"]:focus {
             border-color: #58a6ff;
         }
 
@@ -116,7 +117,7 @@
             cursor: crosshair;
         }
 
-        /* Правая панель в виде прямоугольника со скруглениями */
+        /* Правая панель */
         .tools-panel {
             position: absolute;
             right: 20px;
@@ -138,6 +139,12 @@
             letter-spacing: 0.5px;
             color: #8b949e;
             margin-bottom: 4px;
+        }
+
+        .tool-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
         .tool-btn {
@@ -166,6 +173,48 @@
             color: #58a6ff;
             border-color: #58a6ff;
         }
+
+        /* Выпадающее меню выбора цвета под карандашом */
+        .color-dropdown {
+            display: none;
+            background: #161b22;
+            border: 1px solid #303642;
+            border-radius: 6px;
+            padding: 10px;
+            gap: 8px;
+            flex-direction: column;
+        }
+
+        .color-dropdown.open {
+            display: flex;
+        }
+
+        .color-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 32px;
+            height: 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            background: none;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: 1px solid #484f58;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -174,7 +223,8 @@
     <div class="top-bar">
         <div class="controls-group">
             <label for="sizeInput">Size:</label>
-            <input type="number" id="sizeInput" value="32" min="1" max="128">
+            <!-- Текстовое поле без стрелочек и ограничений -->
+            <input type="text" id="sizeInput" value="32">
         </div>
         <div class="controls-group">
             <button id="gridBtn" class="active-grid">Grid: On</button>
@@ -189,13 +239,22 @@
             </div>
         </div>
 
-        <!-- Правая панель-прямоугольник с кнопками -->
+        <!-- Правая панель -->
         <div class="tools-panel">
             <div class="panel-title">Tools</div>
-            <button class="tool-btn active" id="pencilBtn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
-                Pencil
-            </button>
+            <div class="tool-container">
+                <button class="tool-btn active" id="pencilBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
+                    Pencil
+                </button>
+                <!-- Выпадающее меню выбора цвета -->
+                <div class="color-dropdown open" id="colorDropdown">
+                    <div class="color-row">
+                        <span>Color</span>
+                        <input type="color" id="colorPicker" value="#000000">
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -204,22 +263,23 @@
         const ctx = canvas.getContext('2d');
         const sizeInput = document.getElementById('sizeInput');
         const gridBtn = document.getElementById('gridBtn');
+        const colorPicker = document.getElementById('colorPicker');
 
         let gridSize = 32;
         let isGridOn = true;
         let pixels = [];
         let isDrawing = false;
+        let currentColor = '#000000';
 
         function initCanvas() {
             let size = parseInt(sizeInput.value);
             
+            // Если введено не число или пустота, берем минимум 1, но верхнего лимита больше нет
             if (isNaN(size) || size < 1) size = 1;
-            if (size > 128) size = 128;
-            sizeInput.value = size;
             gridSize = size;
 
             const displaySize = 512;
-            const pixelSize = Math.floor(displaySize / gridSize);
+            const pixelSize = Math.max(1, Math.floor(displaySize / gridSize));
             
             canvas.width = gridSize * pixelSize;
             canvas.height = gridSize * pixelSize;
@@ -258,7 +318,6 @@
             }
         }
 
-        // Рисование на холсте
         function getCursorPosition(e) {
             const rect = canvas.getBoundingClientRect();
             const pixelSize = canvas.width / gridSize;
@@ -283,10 +342,15 @@
         function paintPixel(e) {
             const { x, y } = getCursorPosition(e);
             if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
-                pixels[y][x] = '#000000'; // Карандаш рисует черным цветом
+                pixels[y][x] = currentColor;
                 draw();
             }
         }
+
+        // Изменение цвета из палитры
+        colorPicker.addEventListener('input', (e) => {
+            currentColor = e.target.value;
+        });
 
         sizeInput.addEventListener('input', initCanvas);
 
