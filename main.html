@@ -39,6 +39,10 @@
             align-items: center;
         }
 
+        .controls-group.right-group {
+            margin-left: auto;
+        }
+
         label {
             font-size: 13px;
             color: #8b949e;
@@ -360,7 +364,6 @@
             border: none;
         }
 
-        /* Общие стили модальных окон */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -405,27 +408,6 @@
             color: #c9d1d9;
         }
 
-        .image-container {
-            overflow: auto;
-            max-height: calc(85vh - 80px);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #0d1117;
-            border-radius: 4px;
-            border: 1px solid #303642;
-            position: relative;
-        }
-
-        #sourceImage {
-            display: block;
-            max-width: 100%;
-            max-height: 70vh;
-            cursor: crosshair;
-            object-fit: contain;
-        }
-
-        /* Стили модального окна сохранения */
         .save-modal-content {
             width: 340px;
             gap: 16px;
@@ -513,7 +495,7 @@
                 Redo
             </button>
         </div>
-        <div class="controls-group">
+        <div class="controls-group right-group">
             <button id="saveModalOpenBtn" class="save-action-btn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                 Save
@@ -567,7 +549,7 @@
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22l5.5-1.5L21.5 6.5l-3-3L5 16.5L2 22z"></path><path d="M13.5 6.5l4 4"></path></svg>
                         Eyedropper
                     </button>
-                    <button class="tool-btn icon-only-btn" id="uploadImageBtn" title="Загрузить картинку на холст / для пипетки">
+                    <button class="tool-btn icon-only-btn" id="uploadImageBtn" title="Загрузить картинку на холст">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                     </button>
                 </div>
@@ -606,28 +588,15 @@
                 <button id="closeLoadSizeModalBtn">✕</button>
             </div>
             <div class="save-form-group">
-                <label>Canvas Width</label>
+                <label>Canvas Width (Max 128)</label>
                 <input type="text" id="loadWidthInput" value="32" maxlength="3">
             </div>
             <div class="save-form-group">
-                <label>Canvas Height</label>
+                <label>Canvas Height (Max 128)</label>
                 <input type="text" id="loadHeightInput" value="32" maxlength="3">
             </div>
             <div class="save-modal-actions">
                 <button id="confirmLoadBtn" class="save-action-btn">Load</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно для выбора цвета с картинки (используется при инструменте пипетки) -->
-    <div class="modal-overlay" id="imageModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <span class="modal-title">Кликните по картинке, чтобы выбрать цвет</span>
-                <button id="closeModalBtn">Закрыть</button>
-            </div>
-            <div class="image-container">
-                <img id="sourceImage" alt="Upload Image">
             </div>
         </div>
     </div>
@@ -695,11 +664,7 @@
         const savedColorsGrid = document.getElementById('savedColorsGrid');
         const saveCurrentColorBtn = document.getElementById('saveCurrentColorBtn');
 
-        const imageModal = document.getElementById('imageModal');
-        const closeModalBtn = document.getElementById('closeModalBtn');
-        const sourceImage = document.getElementById('sourceImage');
-
-        // Модальное окно загрузки картинки с размерами
+        // Модальное окно загрузки картинки с размерами (лимит 128)
         const loadSizeModal = document.getElementById('loadSizeModal');
         const closeLoadSizeModalBtn = document.getElementById('closeLoadSizeModalBtn');
         const confirmLoadBtn = document.getElementById('confirmLoadBtn');
@@ -953,6 +918,7 @@
                     applyBrush(x, y, size, '#ffffff');
                 } else if (currentTool === 'eyedropper') {
                     setCurrentColor(pixels[y][x]);
+                    setTool('pencil');
                 }
             }
         }
@@ -1144,7 +1110,7 @@
         eraserSizeInput.addEventListener('input', () => sanitizeInput(eraserSizeInput, 1, 128));
         shapeSizeInput.addEventListener('input', () => sanitizeInput(shapeSizeInput, 1, 128));
 
-        // Обработка загрузки файла
+        // Загрузка картинки отдельной кнопкой
         uploadImageBtn.addEventListener('click', () => {
             imageInput.click();
         });
@@ -1154,7 +1120,6 @@
             if (!file) return;
             pendingImageFile = file;
 
-            // Подставляем текущие размеры холста по умолчанию в модалку выбора размеров
             loadWidthInput.value = gridWidth;
             loadHeightInput.value = gridHeight;
             loadSizeModal.classList.add('open');
@@ -1174,7 +1139,7 @@
 
             widthInput.value = targetW;
             heightInput.value = targetH;
-            initCanvas(false); // инициализируем холст с новыми размерами
+            initCanvas(false);
 
             const reader = new FileReader();
             reader.onload = function(event) {
@@ -1196,7 +1161,6 @@
                             const b = imgData[idx + 2];
                             const a = imgData[idx + 3];
 
-                            // Если пиксель прозрачный, делаем белым, иначе конвертируем в HEX
                             if (a < 10) {
                                 pixels[y][x] = '#ffffff';
                             } else {
@@ -1213,34 +1177,6 @@
 
             loadSizeModal.classList.remove('open');
             pendingImageFile = null;
-        });
-
-        closeModalBtn.addEventListener('click', () => {
-            imageModal.classList.remove('open');
-        });
-
-        sourceImage.addEventListener('click', (e) => {
-            const canvasImg = document.createElement('canvas');
-            const ctxImg = canvasImg.getContext('2d');
-            canvasImg.width = sourceImage.naturalWidth;
-            canvasImg.height = sourceImage.naturalHeight;
-            ctxImg.drawImage(sourceImage, 0, 0);
-
-            const rect = sourceImage.getBoundingClientRect();
-            const scaleX = sourceImage.naturalWidth / rect.width;
-            const scaleY = sourceImage.naturalHeight / rect.height;
-
-            const clickX = (e.clientX - rect.left) * scaleX;
-            const clickY = (e.clientY - rect.top) * scaleY;
-
-            const pixelData = ctxImg.getImageData(clickX, clickY, 1, 1).data;
-            const hex = '#' + [pixelData[0], pixelData[1], pixelData[2]]
-                .map(x => x.toString(16).padStart(2, '0'))
-                .join('');
-
-            setCurrentColor(hex);
-            imageModal.classList.remove('open');
-            setTool('pencil');
         });
 
         function populateQualityOptions() {
@@ -1272,7 +1208,7 @@
 
         saveModalOpenBtn.addEventListener('click', () => {
             populateQualityOptions();
-            keepGridCheckbox.checked = false; // По дефолту выключено
+            keepGridCheckbox.checked = false;
             saveModal.classList.add('open');
         });
 
@@ -1294,7 +1230,6 @@
             const cellW = qW / gridWidth;
             const cellH = qH / gridHeight;
 
-            // Отрисовка пикселей
             for (let y = 0; y < gridHeight; y++) {
                 for (let x = 0; x < gridWidth; x++) {
                     eCtx.fillStyle = pixels[y][x];
@@ -1302,7 +1237,6 @@
                 }
             }
 
-            // Отрисовка сетки, если включен keepGrid
             if (keepGrid && cellW >= 4 && cellH >= 4) {
                 eCtx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
                 eCtx.lineWidth = Math.max(1, Math.floor(cellW / 16));
@@ -1399,6 +1333,9 @@
                 initCanvas(true);
             }
         });
+
+        loadWidthInput.addEventListener('input', () => sanitizeInput(loadWidthInput, 32, 128));
+        loadHeightInput.addEventListener('input', () => sanitizeInput(loadHeightInput, 32, 128));
 
         gridBtn.addEventListener('click', () => {
             isGridOn = !isGridOn;
