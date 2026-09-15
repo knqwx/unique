@@ -44,31 +44,26 @@
             color: #8b949e;
         }
 
-        .size-inputs {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .size-inputs span {
-            color: #8b949e;
-            font-size: 13px;
-        }
-
-        input[type="text"], input[type="number"] {
+        input[type="number"] {
             background: #303642;
             border: 1px solid #484f58;
             color: #c9d1d9;
             padding: 5px 8px;
             border-radius: 4px;
-            width: 50px;
+            width: 60px;
             outline: none;
             font-size: 13px;
             text-align: center;
         }
 
-        input[type="text"]:focus, input[type="number"]:focus {
+        input[type="number"]:focus {
             border-color: #58a6ff;
+        }
+
+        .size-separator {
+            color: #8b949e;
+            font-size: 13px;
+            font-weight: 600;
         }
 
         button {
@@ -157,14 +152,45 @@
             gap: 6px;
         }
 
-        .color-dropdown {
+        .tool-btn {
+            width: 100%;
+            height: 38px;
+            background: #303642;
+            border: 1px solid #484f58;
+            border-radius: 6px;
+            color: #c9d1d9;
             display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 12px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .tool-btn:hover {
+            background: #38404d;
+            border-color: #58a6ff;
+        }
+
+        .tool-btn.active {
+            background: #38404d;
+            color: #58a6ff;
+            border-color: #58a6ff;
+        }
+
+        .color-dropdown {
+            display: none;
             background: #161b22;
             border: 1px solid #303642;
             border-radius: 6px;
             padding: 10px;
             gap: 8px;
             flex-direction: column;
+        }
+
+        .color-dropdown.open {
+            display: flex;
         }
 
         .color-row {
@@ -200,11 +226,9 @@
     <div class="top-bar">
         <div class="controls-group">
             <label>Size:</label>
-            <div class="size-inputs">
-                <input type="number" id="widthInput" value="32" min="1" max="128">
-                <span>×</span>
-                <input type="number" id="heightInput" value="32" min="1" max="128">
-            </div>
+            <input type="number" id="widthInput" value="32" min="1" max="128">
+            <span class="size-separator">×</span>
+            <input type="number" id="heightInput" value="32" min="1" max="128">
         </div>
         <div class="controls-group">
             <button id="gridBtn" class="active-grid">Grid: On</button>
@@ -228,7 +252,7 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
                     Pencil
                 </button>
-                <div class="color-dropdown" id="colorDropdown">
+                <div class="color-dropdown open" id="colorDropdown">
                     <div class="color-row">
                         <span>Color</span>
                         <input type="color" id="colorPicker" value="#000000">
@@ -266,10 +290,10 @@
 
         window.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        function validateAndGetSize(input, min = 1, max = 128) {
+        function validateAndGetSize(input, fallback) {
             let val = parseInt(input.value);
-            if (isNaN(val) || val < min) val = min;
-            if (val > max) val = max;
+            if (isNaN(val) || val < 1) val = 1;
+            if (val > 128) val = 128;
             input.value = val;
             return val;
         }
@@ -282,8 +306,8 @@
         }
 
         function initCanvas() {
-            gridWidth = validateAndGetSize(widthInput);
-            gridHeight = validateAndGetSize(heightInput);
+            gridWidth = validateAndGetSize(widthInput, 32);
+            gridHeight = validateAndGetSize(heightInput, 32);
 
             canvas.width = DISPLAY_SIZE;
             canvas.height = DISPLAY_SIZE;
