@@ -126,7 +126,7 @@
             position: absolute;
             right: 20px;
             top: 20px;
-            width: 220px;
+            width: 230px;
             background: #21262d;
             border: 1px solid #303642;
             border-radius: 8px;
@@ -156,6 +156,7 @@
             display: flex;
             gap: 6px;
             width: 100%;
+            align-items: center;
         }
 
         .tool-btn {
@@ -183,6 +184,23 @@
             padding: 0;
             justify-content: center;
             flex: 0 0 38px;
+        }
+
+        .brush-size-input {
+            width: 50px;
+            height: 38px;
+            background: #303642;
+            border: 1px solid #484f58;
+            color: #c9d1d9;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 13px;
+            outline: none;
+            flex: 0 0 50px;
+        }
+
+        .brush-size-input:focus {
+            border-color: #58a6ff;
         }
 
         .tool-btn:hover {
@@ -327,14 +345,20 @@
         <div class="tools-panel">
             <div class="panel-title">Tools</div>
             <div class="tool-container">
-                <button class="tool-btn active" id="pencilBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
-                    Pencil
-                </button>
-                <button class="tool-btn" id="eraserBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L20 20Z"></path><path d="M17 17L7 7"></path></svg>
-                    Eraser
-                </button>
+                <div class="tool-row">
+                    <button class="tool-btn active" id="pencilBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
+                        Pencil
+                    </button>
+                    <input type="text" class="brush-size-input" id="pencilSizeInput" value="1" maxlength="3" title="Размер кисти карандаша">
+                </div>
+                <div class="tool-row">
+                    <button class="tool-btn" id="eraserBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L20 20Z"></path><path d="M17 17L7 7"></path></svg>
+                        Eraser
+                    </button>
+                    <input type="text" class="brush-size-input" id="eraserSizeInput" value="1" maxlength="3" title="Размер кисти ластика">
+                </div>
                 <div class="tool-row">
                     <button class="tool-btn" id="eyedropperBtn">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22l5.5-1.5L21.5 6.5l-3-3L5 16.5L2 22z"></path><path d="M13.5 6.5l4 4"></path></svg>
@@ -387,6 +411,9 @@
         const uploadImageBtn = document.getElementById('uploadImageBtn');
         const imageInput = document.getElementById('imageInput');
 
+        const pencilSizeInput = document.getElementById('pencilSizeInput');
+        const eraserSizeInput = document.getElementById('eraserSizeInput');
+
         const imageModal = document.getElementById('imageModal');
         const closeModalBtn = document.getElementById('closeModalBtn');
         const sourceImage = document.getElementById('sourceImage');
@@ -409,7 +436,7 @@
 
         window.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        function sanitizeInput(input, fallback) {
+        function sanitizeInput(input, fallback, maxVal = 128) {
             let val = input.value.replace(/[^0-9]/g, '');
             
             if (val.startsWith('0')) {
@@ -418,8 +445,8 @@
 
             if (val !== '') {
                 let num = parseInt(val, 10);
-                if (num > 128) {
-                    num = 128;
+                if (num > maxVal) {
+                    num = maxVal;
                 }
                 val = num.toString();
             }
@@ -436,8 +463,8 @@
         }
 
         function initCanvas() {
-            gridWidth = sanitizeInput(widthInput, 32);
-            gridHeight = sanitizeInput(heightInput, 32);
+            gridWidth = sanitizeInput(widthInput, 32, 128);
+            gridHeight = sanitizeInput(heightInput, 32, 128);
 
             canvas.width = DISPLAY_SIZE;
             canvas.height = DISPLAY_SIZE;
@@ -525,16 +552,51 @@
             const { x, y } = getCursorPosition(e);
             if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
                 if (currentTool === 'pencil') {
-                    pixels[y][x] = currentColor;
-                    draw();
+                    const size = sanitizeInput(pencilSizeInput, 1, Math.max(gridWidth, gridHeight));
+                    applyBrush(x, y, size, currentColor);
                 } else if (currentTool === 'eraser') {
-                    pixels[y][x] = '#ffffff';
-                    draw();
+                    const size = sanitizeInput(eraserSizeInput, 1, Math.max(gridWidth, gridHeight));
+                    applyBrush(x, y, size, '#ffffff');
                 } else if (currentTool === 'eyedropper') {
                     currentColor = pixels[y][x];
                     colorPicker.value = currentColor;
                 }
             }
+        }
+
+        function applyBrush(cx, cy, size, color) {
+            let half = Math.floor(size / 2);
+            let changed = false;
+
+            for (let dy = -half; dy <= half; dy++) {
+                for (let dx = -half; dx <= half; dx++) {
+                    // Если размер четный, чуть корректируем логику для симметрии или используем стандартный квадратный маркер кисти
+                    let nx = cx + dx;
+                    let ny = cy + dy;
+                    if (size % 2 === 0 && dx >= half) continue; // упрощение для симметрии четных размеров
+                    if (size % 2 === 0 && dy >= half) continue;
+
+                    // Простой подход: квадратная кисть заданного размера
+                    // Либо полная матрица:
+                }
+            }
+
+            // Перепишем под удобную квадратную кисть от центра:
+            let startX = cx - Math.floor((size - 1) / 2);
+            let endX = cx + Math.floor(size / 2);
+            let startY = cy - Math.floor((size - 1) / 2);
+            let endY = cy + Math.floor(size / 2);
+
+            for (let y = startY; y <= endY; y++) {
+                for (let x = startX; x <= endX; x++) {
+                    if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
+                        pixels[y][x] = color;
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed) draw();
         }
 
         function setTool(toolName) {
@@ -553,6 +615,10 @@
         eraserBtn.addEventListener('click', () => setTool('eraser'));
         eyedropperBtn.addEventListener('click', () => setTool('eyedropper'));
 
+        // Обработка полей размера кисти
+        pencilSizeInput.addEventListener('input', () => sanitizeInput(pencilSizeInput, 1, 128));
+        eraserSizeInput.addEventListener('input', () => sanitizeInput(eraserSizeInput, 1, 128));
+
         // Загрузка картинки для пипетки
         uploadImageBtn.addEventListener('click', () => {
             imageInput.click();
@@ -568,14 +634,14 @@
                 imageModal.classList.add('open');
             };
             reader.readAsDataURL(file);
-            imageInput.value = ''; // Сброс для возможности повторного выбора того же файла
+            imageInput.value = '';
         });
 
         closeModalBtn.addEventListener('click', () => {
             imageModal.classList.remove('open');
         });
 
-        // Выбор цвета по клику на загруженное изображение через скрытый холст
+        // Выбор цвета по клику на загруженное изображение + авто-переключение на карандаш
         sourceImage.addEventListener('click', (e) => {
             const canvasImg = document.createElement('canvas');
             const ctxImg = canvasImg.getContext('2d');
@@ -599,7 +665,7 @@
             colorPicker.value = hex;
 
             imageModal.classList.remove('open');
-            setTool('eyedropper');
+            setTool('pencil'); // Автоматически меняем на карандаш после выбора цвета
         });
 
         workspace.addEventListener('wheel', (e) => {
@@ -625,7 +691,7 @@
             currentColor = e.target.value;
         });
 
-        widthInput.addEventListener('input', () => sanitizeInput(widthInput, 32));
+        widthInput.addEventListener('input', () => sanitizeInput(widthInput, 32, 128));
         widthInput.addEventListener('change', initCanvas);
         widthInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -635,7 +701,7 @@
             }
         });
 
-        heightInput.addEventListener('input', () => sanitizeInput(heightInput, 32));
+        heightInput.addEventListener('input', () => sanitizeInput(heightInput, 32, 128));
         heightInput.addEventListener('change', initCanvas);
         heightInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
