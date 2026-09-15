@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Background</title>
+    <title>Pixel Editor</title>
     <style>
         * {
             margin: 0;
@@ -26,21 +26,25 @@
         .controls {
             margin-bottom: 20px;
             display: flex;
-            gap: 10px;
+            gap: 12px;
             align-items: center;
             background: #21262d;
-            padding: 10px 15px;
+            padding: 10px 16px;
             border-radius: 8px;
             border: 1px solid #303642;
         }
 
-        input {
+        label {
+            font-size: 14px;
+        }
+
+        input[type="number"] {
             background: #303642;
             border: 1px solid #484f58;
             color: #c9d1d9;
             padding: 6px 10px;
             border-radius: 4px;
-            width: 80px;
+            width: 70px;
             outline: none;
             font-size: 14px;
         }
@@ -58,11 +62,15 @@
             cursor: pointer;
             font-weight: 600;
             font-size: 14px;
-            transition: opacity 0.2s;
+            transition: background 0.2s, opacity 0.2s;
         }
 
         button:hover {
             opacity: 0.9;
+        }
+
+        button.active-grid {
+            background: #3fb950;
         }
 
         .canvas-wrapper {
@@ -75,15 +83,17 @@
 
         canvas {
             display: block;
+            image-rendering: pixelated;
         }
     </style>
 </head>
 <body>
 
     <div class="controls">
-        <label for="sizeInput">Размер:</label>
+        <label for="sizeInput">Size:</label>
         <input type="number" id="sizeInput" value="32" min="1" max="512">
-        <button id="applyBtn">Создать холст</button>
+        <button id="applyBtn">Create Canvas</button>
+        <button id="gridBtn" class="active-grid">Grid: On</button>
     </div>
 
     <div class="canvas-wrapper">
@@ -95,33 +105,83 @@
         const ctx = canvas.getContext('2d');
         const sizeInput = document.getElementById('sizeInput');
         const applyBtn = document.getElementById('applyBtn');
+        const gridBtn = document.getElementById('gridBtn');
 
-        function updateCanvasSize() {
+        let gridSize = 32;
+        let isGridOn = true;
+        // Массив для хранения цветов пикселей [y][x]
+        let pixels = [];
+
+        function initCanvas() {
             let size = parseInt(sizeInput.value);
             
-            // Ограничения, чтобы браузер не завис от случайных огромных чисел
             if (isNaN(size) || size < 1) size = 1;
-            if (size > 1024) size = 1024;
+            if (size > 512) size = 512;
             sizeInput.value = size;
+            gridSize = size;
 
-            // Устанавливаем реальный размер холста
-            canvas.width = size;
-            canvas.height = size;
+            // Физический размер холста в пикселях на экране (например, фиксируем под удобный просмотр или масштабируем)
+            const displaySize = 512; 
+            canvas.width = gridSize;
+            canvas.height = gridSize;
+            canvas.style.width = `${displaySize}px`;
+            canvas.style.height = `${displaySize}px`;
 
-            // Заливаем холст белым цветом по умолчанию
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, size, size);
+            // Инициализируем белый холст
+            pixels = Array(gridSize).fill(null).map(() => Array(gridSize).fill('#ffffff'));
+            
+            draw();
         }
 
-        applyBtn.addEventListener('click', updateCanvasSize);
+        function draw() {
+            ctx.clearRect(0, 0, gridSize, gridSize);
+
+            // Отрисовка пикселей
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    ctx.fillStyle = pixels[y][x];
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+
+            // Отрисовка сетки, если включена
+            if (isGridOn && gridSize <= 64) {
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+                ctx.lineWidth = 0.05; // Тонкая линия для масштабируемого холста
+                
+                ctx.beginPath();
+                for (let i = 0; i <= gridSize; i++) {
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i, gridSize);
+                    ctx.moveTo(0, i);
+                    ctx.lineTo(gridSize, i);
+                }
+                ctx.stroke();
+            }
+        }
+
+        applyBtn.addEventListener('click', initCanvas);
         sizeInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                updateCanvasSize();
+                initCanvas();
             }
         });
 
-        // Инициализация при старте
-        updateCanvasSize();
+        // Переключение сетки
+        gridBtn.addEventListener('click', () => {
+            isGridOn = !isGridOn;
+            if (isGridOn) {
+                gridBtn.textContent = 'Grid: On';
+                gridBtn.classList.add('active-grid');
+            } else {
+                gridBtn.textContent = 'Grid: Off';
+                gridBtn.classList.remove('active-grid');
+            }
+            draw();
+        });
+
+        // Стартовая инициализация
+        initCanvas();
     </script>
 </body>
 </html>
