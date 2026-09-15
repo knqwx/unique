@@ -93,7 +93,7 @@
             overflow: hidden;
         }
 
-        /* Рабочая область (теперь тут панорамирование) */
+        /* Рабочая область */
         .workspace {
             flex: 1;
             background-color: #252a33;
@@ -225,7 +225,6 @@
     <div class="top-bar">
         <div class="controls-group">
             <label for="sizeInput">Size:</label>
-            <!-- Поддерживает формат вида 32x16 или просто число -->
             <input type="text" id="sizeInput" value="32x32">
         </div>
         <div class="controls-group">
@@ -275,15 +274,14 @@
         let isDrawing = false;
         let isPanning = false;
         let currentColor = '#000000';
-        let pixelSize = 16; 
-
-        // Координаты смещения холста для панорамирования ПКМ
+        
+        // Физический размер холста на экране всегда один и тот же (например, 512x512 пикселей)
+        const DISPLAY_SIZE = 512;
         let panX = 0;
         let panY = 0;
         let startX = 0;
         let startY = 0;
 
-        // Отключаем стандартное контекстное меню при клике ПКМ
         window.addEventListener('contextmenu', (e) => {
             e.preventDefault();
         });
@@ -295,11 +293,15 @@
                 let w = parseInt(parts[0]);
                 let h = parseInt(parts[1]);
                 if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
+                    // Ограничение лимита до 128x128 макс
+                    if (w > 128) w = 128;
+                    if (h > 128) h = 128;
                     return { width: w, height: h };
                 }
             } else if (parts.length === 1) {
                 let v = parseInt(parts[0]);
                 if (!isNaN(v) && v > 0) {
+                    if (v > 128) v = 128;
                     return { width: v, height: v };
                 }
             }
@@ -308,29 +310,24 @@
 
         function initCanvas() {
             let parsed = parseSize(sizeInput.value);
-            if (!parsed) return; // Если введено что-то некорректное, ждем пока пользователь допишет
+            if (!parsed) return;
 
             gridWidth = parsed.width;
             gridHeight = parsed.height;
 
-            updateCanvasDimensions();
-            
-            // Инициализация сетки пикселей [y][x]
+            // Фиксированный размер холста в пикселях DOM, а размер пикселей зависит от пропорций сетки
+            canvas.width = DISPLAY_SIZE;
+            canvas.height = DISPLAY_SIZE;
+            canvas.style.width = `${DISPLAY_SIZE}px`;
+            canvas.style.height = `${DISPLAY_SIZE}px`;
+
             pixels = Array(gridHeight).fill(null).map(() => Array(gridWidth).fill('#ffffff'));
             
-            // Центрируем холст при старте
-            panX = (workspace.clientWidth - canvas.width) / 2;
-            panY = (workspace.clientHeight - canvas.height) / 2;
+            panX = (workspace.clientWidth - DISPLAY_SIZE) / 2;
+            panY = (workspace.clientHeight - DISPLAY_SIZE) / 2;
             updateCanvasTransform();
 
             draw();
-        }
-
-        function updateCanvasDimensions() {
-            canvas.width = gridWidth * pixelSize;
-            canvas.height = gridHeight * pixelSize;
-            canvas.style.width = `${canvas.width}px`;
-            canvas.style.height = `${canvas.height}px`;
         }
 
         function updateCanvasTransform() {
@@ -340,25 +337,29 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // Вычисляем размер одного пикселя динамически под фиксированный размер холста
+            const cellW = canvas.width / gridWidth;
+            const cellH = canvas.height / gridHeight;
+
             for (let y = 0; y < gridHeight; y++) {
                 for (let x = 0; x < gridWidth; x++) {
                     ctx.fillStyle = pixels[y][x];
-                    ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+                    ctx.fillRect(x * cellW, y * cellH, cellW, cellH);
                 }
             }
 
-            if (isGridOn && pixelSize >= 4) {
+            if (isGridOn && cellW >= 4 && cellH >= 4) {
                 ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
                 ctx.lineWidth = 1;
                 
                 ctx.beginPath();
                 for (let i = 0; i <= gridWidth; i++) {
-                    let pos = i * pixelSize;
+                    let pos = i * cellW;
                     ctx.moveTo(pos, 0);
                     ctx.lineTo(pos, canvas.height);
                 }
                 for (let j = 0; j <= gridHeight; j++) {
-                    let pos = j * pixelSize;
+                    let pos = j * cellH;
                     ctx.moveTo(0, pos);
                     ctx.lineTo(canvas.width, pos);
                 }
@@ -368,17 +369,18 @@
 
         function getCursorPosition(e) {
             const rect = canvas.getBoundingClientRect();
-            const x = Math.floor((e.clientX - rect.left) / pixelSize);
-            const y = Math.floor((e.clientY - rect.top) / pixelSize);
+            const cellW = rect.width / gridWidth;
+            const cellH = rect.height / gridHeight;
+            const x = Math.floor((e.clientX - rect.left) / cellW);
+            const y = Math.floor((e.clientY - rect.top) / cellH);
             return { x, y };
         }
 
-        // Обработка мыши на холсте
         canvas.addEventListener('mousedown', (e) => {
-            if (e.button === 0) { // ЛКМ — рисование
+            if (e.button === 0) {
                 isDrawing = true;
                 paintPixel(e);
-            } else if (e.button === 2) { // ПКМ — панорамирование
+            } else if (e.button === 2) {
                 isPanning = true;
                 startX = e.clientX - panX;
                 startY = e.clientY - panY;
@@ -408,31 +410,31 @@
             }
         }
 
-        // Приближение/отдаление колесиком мыши строго над холстом
+        // Исправлено приближение/отдаление: теперь масштабируется через размеры холста, камера не улетает вверх
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
 
-            let oldPixelSize = pixelSize;
-            if (e.deltaY < 0) {
-                if (pixelSize < 64) pixelSize += 2;
-            } else {
-                if (pixelSize > 2) pixelSize -= 2;
-            }
+            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+            let newWidth = canvas.width * zoomFactor;
 
-            if (pixelSize !== oldPixelSize) {
-                // Зум относительно центра или курсора
-                const rect = canvas.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
+            // Ограничения зума
+            if (newWidth < 128 || newWidth > 4096) return;
 
-                let scale = pixelSize / oldPixelSize;
-                panX = e.clientX - mouseX * scale;
-                panY = e.clientY - mouseY * scale;
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
 
-                updateCanvasDimensions();
-                updateCanvasTransform();
-                draw();
-            }
+            canvas.width = newWidth;
+            canvas.height = newWidth;
+            canvas.style.width = `${newWidth}px`;
+            canvas.style.height = `${newWidth}px`;
+
+            // Корректируем позицию панорамирования относительно курсора мыши, чтобы камера не смещалась вверх
+            panX = e.clientX - mouseX * zoomFactor;
+            panY = e.clientY - mouseY * zoomFactor;
+
+            updateCanvasTransform();
+            draw();
         }, { passive: false });
 
         colorPicker.addEventListener('input', (e) => {
