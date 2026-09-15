@@ -180,17 +180,14 @@
         }
 
         .color-dropdown {
-            display: none;
             background: #161b22;
             border: 1px solid #303642;
             border-radius: 6px;
             padding: 10px;
             gap: 8px;
-            flex-direction: column;
-        }
-
-        .color-dropdown.open {
             display: flex;
+            flex-direction: column;
+            margin-top: 6px;
         }
 
         .color-row {
@@ -252,7 +249,15 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
                     Pencil
                 </button>
-                <div class="color-dropdown open" id="colorDropdown">
+                <button class="tool-btn" id="eraserBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L20 20Z"></path><path d="M17 17L7 7"></path></svg>
+                    Eraser
+                </button>
+                <button class="tool-btn" id="eyedropperBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22l5.5-1.5L21.5 6.5l-3-3L5 16.5L2 22z"></path><path d="M13.5 6.5l4 4"></path></svg>
+                    Eyedropper
+                </button>
+                <div class="color-dropdown" id="colorDropdown">
                     <div class="color-row">
                         <span>Color</span>
                         <input type="color" id="colorPicker" value="#000000">
@@ -273,6 +278,10 @@
         const workspace = document.getElementById('workspace');
         const canvasWrapper = document.getElementById('canvasWrapper');
 
+        const pencilBtn = document.getElementById('pencilBtn');
+        const eraserBtn = document.getElementById('eraserBtn');
+        const eyedropperBtn = document.getElementById('eyedropperBtn');
+
         let gridWidth = 32;
         let gridHeight = 32;
         let isGridOn = true;
@@ -280,6 +289,8 @@
         let isDrawing = false;
         let isPanning = false;
         let currentColor = '#000000';
+        let currentTool = 'pencil'; // 'pencil', 'eraser', 'eyedropper'
+        let previousTool = 'pencil'; // для возврата после пипетки
         
         const DISPLAY_SIZE = 512;
         let panX = 0;
@@ -293,7 +304,6 @@
         function sanitizeInput(input, fallback) {
             let val = input.value.replace(/[^0-9]/g, '');
             
-            // Нельзя начинать с 0
             if (val.startsWith('0')) {
                 val = val.replace(/^0+/, '');
             }
@@ -380,7 +390,7 @@
         canvas.addEventListener('mousedown', (e) => {
             if (e.button === 0) {
                 isDrawing = true;
-                paintPixel(e);
+                handleToolAction(e);
             } else if (e.button === 2) {
                 isPanning = true;
                 startX = e.clientX - panX;
@@ -395,7 +405,7 @@
 
         window.addEventListener('mousemove', (e) => {
             if (isDrawing) {
-                paintPixel(e);
+                handleToolAction(e);
             } else if (isPanning) {
                 panX = e.clientX - startX;
                 panY = e.clientY - startY;
@@ -403,13 +413,42 @@
             }
         });
 
-        function paintPixel(e) {
+        function handleToolAction(e) {
             const { x, y } = getCursorPosition(e);
             if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
-                pixels[y][x] = currentColor;
-                draw();
+                if (currentTool === 'pencil') {
+                    pixels[y][x] = currentColor;
+                    draw();
+                } else if (currentTool === 'eraser') {
+                    pixels[y][x] = '#ffffff'; // Стираем в белый цвет
+                    draw();
+                } else if (currentTool === 'eyedropper') {
+                    currentColor = pixels[y][x];
+                    colorPicker.value = currentColor;
+                    // Возвращаем предыдущий инструмент после выбора цвета
+                    setTool(previousTool);
+                }
             }
         }
+
+        function setTool(toolName) {
+            if (currentTool !== 'eyedropper') {
+                previousTool = currentTool;
+            }
+            currentTool = toolName;
+
+            pencilBtn.classList.remove('active');
+            eraserBtn.classList.remove('active');
+            eyedropperBtn.classList.remove('active');
+
+            if (toolName === 'pencil') pencilBtn.classList.add('active');
+            if (toolName === 'eraser') eraserBtn.classList.add('active');
+            if (toolName === 'eyedropper') eyedropperBtn.classList.add('active');
+        }
+
+        pencilBtn.addEventListener('click', () => setTool('pencil'));
+        eraserBtn.addEventListener('click', () => setTool('eraser'));
+        eyedropperBtn.addEventListener('click', () => setTool('eyedropper'));
 
         workspace.addEventListener('wheel', (e) => {
             e.preventDefault();
@@ -434,7 +473,6 @@
             currentColor = e.target.value;
         });
 
-        // Обработка ввода и нажатия Enter
         widthInput.addEventListener('input', () => sanitizeInput(widthInput, 32));
         widthInput.addEventListener('change', initCanvas);
         widthInput.addEventListener('keydown', (e) => {
