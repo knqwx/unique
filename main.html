@@ -77,11 +77,21 @@
             font-size: 13px;
             transition: all 0.2s;
             outline: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         button:hover, select:hover {
             background: #38404d;
             border-color: #58a6ff;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: #484f58 !important;
+            background: #303642 !important;
         }
 
         select {
@@ -137,7 +147,7 @@
             position: absolute;
             right: 20px;
             top: 20px;
-            width: 250px;
+            width: 260px;
             background: #21262d;
             border: 1px solid #303642;
             border-radius: 8px;
@@ -147,6 +157,16 @@
             flex-direction: column;
             gap: 12px;
             z-index: 10;
+            max-height: calc(100vh - 60px);
+            overflow-y: auto;
+        }
+
+        .tools-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        .tools-panel::-webkit-scrollbar-thumb {
+            background: #303642;
+            border-radius: 3px;
         }
 
         .panel-title {
@@ -241,7 +261,7 @@
             border: 1px solid #303642;
             border-radius: 6px;
             padding: 10px;
-            gap: 8px;
+            gap: 10px;
             display: flex;
             flex-direction: column;
             margin-top: 4px;
@@ -272,6 +292,54 @@
         input[type="color"]::-webkit-color-swatch {
             border: 1px solid #484f58;
             border-radius: 4px;
+        }
+
+        .palette-section {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .palette-label {
+            font-size: 11px;
+            color: #8b949e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 4px;
+        }
+
+        .color-swatch {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 4px;
+            border: 1px solid #484f58;
+            cursor: pointer;
+            transition: transform 0.1s, border-color 0.1s;
+        }
+
+        .color-swatch:hover {
+            transform: scale(1.1);
+            border-color: #58a6ff;
+        }
+
+        .add-saved-btn {
+            background: none;
+            border: none;
+            color: #58a6ff;
+            cursor: pointer;
+            font-size: 11px;
+            padding: 0;
+        }
+        .add-saved-btn:hover {
+            text-decoration: underline;
+            background: none;
+            border: none;
         }
 
         /* Модальное окно для выбора цвета с картинки */
@@ -354,6 +422,16 @@
             <button id="centerBtn">Center: Off</button>
         </div>
         <div class="controls-group">
+            <button id="undoBtn" title="Отменить действие (Ctrl+Z)" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>
+                Undo
+            </button>
+            <button id="redoBtn" title="Повторить действие (Ctrl+Y)" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"></path><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"></path></svg>
+                Redo
+            </button>
+        </div>
+        <div class="controls-group">
             <button id="resetPosBtn">Reset Position</button>
         </div>
     </div>
@@ -407,10 +485,24 @@
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                     </button>
                 </div>
+                
                 <div class="color-dropdown" id="colorDropdown">
                     <div class="color-row">
                         <span>Color</span>
                         <input type="color" id="colorPicker" value="#000000">
+                    </div>
+                    
+                    <div class="palette-section">
+                        <div class="palette-label">Recent Colors</div>
+                        <div class="palette-grid" id="recentColorsGrid"></div>
+                    </div>
+
+                    <div class="palette-section">
+                        <div class="palette-label">
+                            <span>Saved Colors</span>
+                            <button class="add-saved-btn" id="saveCurrentColorBtn">+ Save current</button>
+                        </div>
+                        <div class="palette-grid" id="savedColorsGrid"></div>
                     </div>
                 </div>
             </div>
@@ -441,6 +533,8 @@
         const gridBtn = document.getElementById('gridBtn');
         const centerBtn = document.getElementById('centerBtn');
         const resetPosBtn = document.getElementById('resetPosBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
         const colorPicker = document.getElementById('colorPicker');
         const workspace = document.getElementById('workspace');
         const canvasWrapper = document.getElementById('canvasWrapper');
@@ -458,6 +552,10 @@
         const eraserSizeInput = document.getElementById('eraserSizeInput');
         const shapeSizeInput = document.getElementById('shapeSizeInput');
 
+        const recentColorsGrid = document.getElementById('recentColorsGrid');
+        const savedColorsGrid = document.getElementById('savedColorsGrid');
+        const saveCurrentColorBtn = document.getElementById('saveCurrentColorBtn');
+
         const imageModal = document.getElementById('imageModal');
         const closeModalBtn = document.getElementById('closeModalBtn');
         const sourceImage = document.getElementById('sourceImage');
@@ -467,10 +565,16 @@
         let isGridOn = true;
         let isCenterOn = false;
         let pixels = [];
+        
+        // История для Undo / Redo
+        let history = [];
+        let historyIndex = -1;
+        const MAX_HISTORY = 30;
+
         let isDrawing = false;
         let isPanning = false;
         let currentColor = '#000000';
-        let currentTool = 'pencil'; // 'pencil', 'eraser', 'bucket', 'shape', 'eyedropper'
+        let currentTool = 'pencil';
         
         const DISPLAY_SIZE = 768;
         let panX = 0;
@@ -481,7 +585,11 @@
 
         let shapeStartX = 0;
         let shapeStartY = 0;
-        let pixelsBackup = null;
+        let pixelsBeforeShape = null;
+
+        // Цветовые палитры
+        let recentColors = ['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
+        let savedColors = ['#000000', '#ffffff', '#21262d', '#58a6ff', '#238636', '#da3633', '#f0883e', '#8957e5'];
 
         window.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -506,7 +614,7 @@
             updateTransform();
         }
 
-        function initCanvas() {
+        function initCanvas(saveToHistoryState = true) {
             gridWidth = sanitizeInput(widthInput, 32, 128);
             gridHeight = sanitizeInput(heightInput, 32, 128);
 
@@ -517,8 +625,52 @@
 
             pixels = Array(gridHeight).fill(null).map(() => Array(gridWidth).fill('#ffffff'));
             
+            if (saveToHistoryState) {
+                history = [];
+                historyIndex = -1;
+                pushHistory();
+            }
+
             resetPosition();
             draw();
+        }
+
+        function pushHistory() {
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
+            // Клонируем матрицу пикселей
+            const snapshot = pixels.map(row => [...row]);
+            history.push(snapshot);
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+            } else {
+                historyIndex++;
+            }
+            updateUndoRedoButtons();
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                pixels = history[historyIndex].map(row => [...row]);
+                draw();
+                updateUndoRedoButtons();
+            }
+        }
+
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                pixels = history[historyIndex].map(row => [...row]);
+                draw();
+                updateUndoRedoButtons();
+            }
+        }
+
+        function updateUndoRedoButtons() {
+            undoBtn.disabled = historyIndex <= 0;
+            redoBtn.disabled = historyIndex >= history.length - 1;
         }
 
         function updateTransform() {
@@ -538,7 +690,6 @@
                 }
             }
 
-            // Отрисовка сетки
             if (isGridOn && cellW >= 4 && cellH >= 4) {
                 ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
                 ctx.lineWidth = 1;
@@ -557,7 +708,6 @@
                 ctx.stroke();
             }
 
-            // Отрисовка центра холста
             if (isCenterOn) {
                 ctx.strokeStyle = 'rgba(235, 87, 87, 0.75)';
                 ctx.lineWidth = Math.max(1, cellW / 4);
@@ -565,11 +715,9 @@
                 let centerX = (gridWidth / 2) * cellW;
                 let centerY = (gridHeight / 2) * cellH;
 
-                // Вертикальная линия центра
                 ctx.beginPath();
                 ctx.moveTo(centerX, 0);
                 ctx.lineTo(centerX, canvas.height);
-                // Горизонтальная линия центра
                 ctx.moveTo(0, centerY);
                 ctx.lineTo(canvas.width, centerY);
                 ctx.stroke();
@@ -592,13 +740,14 @@
                 if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
                     if (currentTool === 'bucket') {
                         floodFill(x, y, pixels[y][x], currentColor);
+                        pushHistory();
                         draw();
                     } else if (currentTool === 'shape') {
                         shapeStartX = x;
                         shapeStartY = y;
-                        pixelsBackup = pixels.map(row => [...row]);
+                        pixelsBeforeShape = pixels.map(row => [...row]);
                     } else {
-                        handleToolAction(e);
+                        handleToolAction(e, true);
                     }
                 }
             } else if (e.button === 2) {
@@ -611,7 +760,12 @@
         window.addEventListener('mouseup', (e) => {
             if (e.button === 0 && isDrawing) {
                 isDrawing = false;
-                pixelsBackup = null;
+                if (currentTool === 'shape') {
+                    pushHistory();
+                } else if (currentTool === 'pencil' || currentTool === 'eraser') {
+                    pushHistory();
+                }
+                pixelsBeforeShape = null;
             }
             if (e.button === 2) isPanning = false;
         });
@@ -620,14 +774,14 @@
             if (isDrawing) {
                 const { x, y } = getCursorPosition(e);
                 if (currentTool === 'shape') {
-                    if (pixelsBackup) {
-                        pixels = pixelsBackup.map(row => [...row]);
+                    if (pixelsBeforeShape) {
+                        pixels = pixelsBeforeShape.map(row => [...row]);
                         const shapeThickness = sanitizeInput(shapeSizeInput, 1, Math.max(gridWidth, gridHeight));
                         drawShape(shapeStartX, shapeStartY, x, y, shapeTypeSelect.value, currentColor, shapeThickness);
                         draw();
                     }
                 } else {
-                    handleToolAction(e);
+                    handleToolAction(e, false);
                 }
             } else if (isPanning) {
                 panX = e.clientX - startX;
@@ -636,7 +790,7 @@
             }
         });
 
-        function handleToolAction(e) {
+        function handleToolAction(e, isFirstClick) {
             const { x, y } = getCursorPosition(e);
             if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
                 if (currentTool === 'pencil') {
@@ -646,8 +800,7 @@
                     const size = sanitizeInput(eraserSizeInput, 1, Math.max(gridWidth, gridHeight));
                     applyBrush(x, y, size, '#ffffff');
                 } else if (currentTool === 'eyedropper') {
-                    currentColor = pixels[y][x];
-                    colorPicker.value = currentColor;
+                    setCurrentColor(pixels[y][x]);
                 }
             }
         }
@@ -662,8 +815,10 @@
             for (let y = startY; y <= endY; y++) {
                 for (let x = startX; x <= endX; x++) {
                     if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
-                        pixels[y][x] = color;
-                        changed = true;
+                        if (pixels[y][x] !== color) {
+                            pixels[y][x] = color;
+                            changed = true;
+                        }
                     }
                 }
             }
@@ -692,7 +847,6 @@
             }
         }
 
-        // Правильный и плавный алгоритм рисования фигур (включая толстые линии, круги и прямоугольники)
         function drawShape(x1, y1, x2, y2, type, color, thickness) {
             if (type === 'rect') {
                 let minX = Math.min(x1, x2);
@@ -702,7 +856,6 @@
 
                 for (let y = minY; y <= maxY; y++) {
                     for (let x = minX; x <= maxX; x++) {
-                        // Рисуем рамку с учетом толщины
                         if (x - minX < thickness || maxX - x < thickness || y - minY < thickness || maxY - y < thickness) {
                             if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
                                 pixels[y][x] = color;
@@ -711,13 +864,11 @@
                     }
                 }
             } else if (type === 'circle') {
-                // Точный пиксельный алгоритм для окружности по радиусу (Midpoint circle / distance-based)
                 let cx = (x1 + x2) / 2;
                 let cy = (y1 + y2) / 2;
                 let rx = Math.abs(x2 - x1) / 2;
                 let ry = Math.abs(y2 - y1) / 2;
 
-                // Для идеального круга берем максимальное или среднее значение радиуса
                 let r = Math.max(rx, ry);
                 let center_x = x1 < x2 ? x1 + rx : x2 + rx;
                 let center_y = y1 < y2 ? y1 + ry : y2 + ry;
@@ -728,7 +879,6 @@
                         let dy = y + 0.5 - center_y;
                         let dist = Math.sqrt(dx * dx + dy * dy);
 
-                        // Рисуем контур окружности с заданной толщиной
                         if (Math.abs(dist - r) <= (thickness / 2) || (r === 0 && dist <= thickness / 2)) {
                             if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
                                 pixels[y][x] = color;
@@ -737,7 +887,6 @@
                     }
                 }
             } else if (type === 'line') {
-                // Утолщенный алгоритм Брезенхэма для линий
                 let dx = Math.abs(x2 - x1);
                 let dy = Math.abs(y2 - y1);
                 let sx = (x1 < x2) ? 1 : -1;
@@ -748,9 +897,7 @@
                 let currY = y1;
 
                 while (true) {
-                    // Рисуем кисть в каждой точке линии для поддержки толщины
                     applyBrush(currX, currY, thickness, color);
-
                     if (currX === x2 && currY === y2) break;
                     let e2 = 2 * err;
                     if (e2 > -dy) {
@@ -764,6 +911,56 @@
                 }
             }
         }
+
+        // Управление цветами и палитрой
+        function setCurrentColor(hex) {
+            currentColor = hex;
+            colorPicker.value = hex;
+            addRecentColor(hex);
+        }
+
+        function addRecentColor(hex) {
+            recentColors = recentColors.filter(c => c.toLowerCase() !== hex.toLowerCase());
+            recentColors.unshift(hex);
+            if (recentColors.length > 8) recentColors.pop();
+            renderPalettes();
+        }
+
+        function renderPalettes() {
+            recentColorsGrid.innerHTML = '';
+            recentColors.forEach(hex => {
+                const swatch = document.createElement('div');
+                swatch.className = 'color-swatch';
+                swatch.style.backgroundColor = hex;
+                swatch.title = hex;
+                swatch.addEventListener('click', () => {
+                    currentColor = hex;
+                    colorPicker.value = hex;
+                });
+                recentColorsGrid.appendChild(swatch);
+            });
+
+            savedColorsGrid.innerHTML = '';
+            savedColors.forEach(hex => {
+                const swatch = document.createElement('div');
+                swatch.className = 'color-swatch';
+                swatch.style.backgroundColor = hex;
+                swatch.title = hex;
+                swatch.addEventListener('click', () => {
+                    currentColor = hex;
+                    colorPicker.value = hex;
+                });
+                savedColorsGrid.appendChild(swatch);
+            });
+        }
+
+        saveCurrentColorBtn.addEventListener('click', () => {
+            if (!savedColors.includes(currentColor)) {
+                savedColors.push(currentColor);
+                if (savedColors.length > 16) savedColors.shift();
+                renderPalettes();
+            }
+        });
 
         function setTool(toolName) {
             currentTool = toolName;
@@ -831,9 +1028,7 @@
                 .map(x => x.toString(16).padStart(2, '0'))
                 .join('');
 
-            currentColor = hex;
-            colorPicker.value = hex;
-
+            setCurrentColor(hex);
             imageModal.classList.remove('open');
             setTool('pencil');
         });
@@ -858,11 +1053,11 @@
         }, { passive: false });
 
         colorPicker.addEventListener('input', (e) => {
-            currentColor = e.target.value;
+            setCurrentColor(e.target.value);
         });
 
         widthInput.addEventListener('input', () => sanitizeInput(widthInput, 32, 128));
-        widthInput.addEventListener('change', initCanvas);
+        widthInput.addEventListener('change', () => initCanvas(true));
         widthInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -872,12 +1067,12 @@
         });
 
         heightInput.addEventListener('input', () => sanitizeInput(heightInput, 32, 128));
-        heightInput.addEventListener('change', initCanvas);
+        heightInput.addEventListener('change', () => initCanvas(true));
         heightInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 heightInput.blur();
-                initCanvas();
+                initCanvas(true);
             }
         });
 
@@ -895,9 +1090,28 @@
             draw();
         });
 
+        undoBtn.addEventListener('click', undo);
+        redoBtn.addEventListener('click', redo);
+
+        // Горячие клавиши Ctrl+Z и Ctrl+Y
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    redo();
+                } else {
+                    undo();
+                }
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+                e.preventDefault();
+                redo();
+            }
+        });
+
         resetPosBtn.addEventListener('click', resetPosition);
 
-        initCanvas();
+        renderPalettes();
+        initCanvas(true);
     </script>
 </body>
 </html>
