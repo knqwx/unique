@@ -275,7 +275,6 @@
         let isPanning = false;
         let currentColor = '#000000';
         
-        // Физический размер холста на экране всегда один и тот же (например, 512x512 пикселей)
         const DISPLAY_SIZE = 512;
         let panX = 0;
         let panY = 0;
@@ -293,7 +292,6 @@
                 let w = parseInt(parts[0]);
                 let h = parseInt(parts[1]);
                 if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
-                    // Ограничение лимита до 128x128 макс
                     if (w > 128) w = 128;
                     if (h > 128) h = 128;
                     return { width: w, height: h };
@@ -315,7 +313,6 @@
             gridWidth = parsed.width;
             gridHeight = parsed.height;
 
-            // Фиксированный размер холста в пикселях DOM, а размер пикселей зависит от пропорций сетки
             canvas.width = DISPLAY_SIZE;
             canvas.height = DISPLAY_SIZE;
             canvas.style.width = `${DISPLAY_SIZE}px`;
@@ -337,7 +334,6 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Вычисляем размер одного пикселя динамически под фиксированный размер холста
             const cellW = canvas.width / gridWidth;
             const cellH = canvas.height / gridHeight;
 
@@ -410,28 +406,25 @@
             }
         }
 
-        // Исправлено приближение/отдаление: теперь масштабируется через размеры холста, камера не улетает вверх
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
 
             const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
             let newWidth = canvas.width * zoomFactor;
 
-            // Ограничения зума
             if (newWidth < 128 || newWidth > 4096) return;
 
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
+            panX = e.clientX - mouseX * zoomFactor;
+            panY = e.clientY - mouseY * zoomFactor;
+
             canvas.width = newWidth;
             canvas.height = newWidth;
             canvas.style.width = `${newWidth}px`;
             canvas.style.height = `${newWidth}px`;
-
-            // Корректируем позицию панорамирования относительно курсора мыши, чтобы камера не смещалась вверх
-            panX = e.clientX - mouseX * zoomFactor;
-            panY = e.clientY - mouseY * zoomFactor;
 
             updateCanvasTransform();
             draw();
