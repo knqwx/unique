@@ -458,6 +458,25 @@
             border-color: #58a6ff;
         }
 
+        .checkbox-row {
+            flex-direction: row !important;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .checkbox-row input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #238636;
+            cursor: pointer;
+        }
+
+        .checkbox-row label {
+            cursor: pointer;
+            color: #c9d1d9;
+        }
+
         .save-modal-actions {
             display: flex;
             gap: 10px;
@@ -548,7 +567,7 @@
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22l5.5-1.5L21.5 6.5l-3-3L5 16.5L2 22z"></path><path d="M13.5 6.5l4 4"></path></svg>
                         Eyedropper
                     </button>
-                    <button class="tool-btn icon-only-btn" id="uploadImageBtn" title="Загрузить картинку для пипетки">
+                    <button class="tool-btn icon-only-btn" id="uploadImageBtn" title="Загрузить картинку на холст / для пипетки">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                     </button>
                 </div>
@@ -579,7 +598,28 @@
     <!-- Скрытый инпут для выбора файла изображения -->
     <input type="file" id="imageInput" accept="image/*" style="display: none;">
 
-    <!-- Модальное окно для выбора цвета с картинки -->
+    <!-- Модальное окно для настройки размера перед загрузкой картинки -->
+    <div class="modal-overlay" id="loadSizeModal">
+        <div class="modal-content save-modal-content">
+            <div class="modal-header">
+                <span class="modal-title">Load Image to Canvas</span>
+                <button id="closeLoadSizeModalBtn">✕</button>
+            </div>
+            <div class="save-form-group">
+                <label>Canvas Width</label>
+                <input type="text" id="loadWidthInput" value="32" maxlength="3">
+            </div>
+            <div class="save-form-group">
+                <label>Canvas Height</label>
+                <input type="text" id="loadHeightInput" value="32" maxlength="3">
+            </div>
+            <div class="save-modal-actions">
+                <button id="confirmLoadBtn" class="save-action-btn">Load</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для выбора цвета с картинки (используется при инструменте пипетки) -->
     <div class="modal-overlay" id="imageModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -613,6 +653,10 @@
                 <select id="exportQuality">
                     <!-- Заполняется динамически -->
                 </select>
+            </div>
+            <div class="save-form-group checkbox-row">
+                <input type="checkbox" id="keepGridCheckbox">
+                <label for="keepGridCheckbox">Keep grid</label>
             </div>
             <div class="save-modal-actions">
                 <button id="confirmSaveBtn" class="save-action-btn">Download</button>
@@ -655,12 +699,21 @@
         const closeModalBtn = document.getElementById('closeModalBtn');
         const sourceImage = document.getElementById('sourceImage');
 
+        // Модальное окно загрузки картинки с размерами
+        const loadSizeModal = document.getElementById('loadSizeModal');
+        const closeLoadSizeModalBtn = document.getElementById('closeLoadSizeModalBtn');
+        const confirmLoadBtn = document.getElementById('confirmLoadBtn');
+        const loadWidthInput = document.getElementById('loadWidthInput');
+        const loadHeightInput = document.getElementById('loadHeightInput');
+        let pendingImageFile = null;
+
         const saveModal = document.getElementById('saveModal');
         const saveModalOpenBtn = document.getElementById('saveModalOpenBtn');
         const closeSaveModalBtn = document.getElementById('closeSaveModalBtn');
         const confirmSaveBtn = document.getElementById('confirmSaveBtn');
         const exportFormat = document.getElementById('exportFormat');
         const exportQuality = document.getElementById('exportQuality');
+        const keepGridCheckbox = document.getElementById('keepGridCheckbox');
 
         let gridWidth = 32;
         let gridHeight = 32;
@@ -688,7 +741,6 @@
         let shapeStartY = 0;
         let pixelsBeforeShape = null;
 
-        // Палитры по умолчанию чистые
         let recentColors = [];
         let savedColors = [];
 
@@ -964,11 +1016,8 @@
                     }
                 }
             } else if (type === 'circle') {
-                let cx = (x1 + x2) / 2;
-                let cy = (y1 + y2) / 2;
                 let rx = Math.abs(x2 - x1) / 2;
                 let ry = Math.abs(y2 - y1) / 2;
-
                 let r = Math.max(rx, ry);
                 let center_x = x1 < x2 ? x1 + rx : x2 + rx;
                 let center_y = y1 < y2 ? y1 + ry : y2 + ry;
@@ -1012,11 +1061,9 @@
             }
         }
 
-        // Управление цветами и палитрой
         function setCurrentColor(hex) {
             currentColor = hex;
             colorPicker.value = hex;
-            // Добавляем цвет в recent только если реально им рисуем или выбираем
             addRecentColor(hex);
         }
 
@@ -1097,6 +1144,7 @@
         eraserSizeInput.addEventListener('input', () => sanitizeInput(eraserSizeInput, 1, 128));
         shapeSizeInput.addEventListener('input', () => sanitizeInput(shapeSizeInput, 1, 128));
 
+        // Обработка загрузки файла
         uploadImageBtn.addEventListener('click', () => {
             imageInput.click();
         });
@@ -1104,14 +1152,67 @@
         imageInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
+            pendingImageFile = file;
+
+            // Подставляем текущие размеры холста по умолчанию в модалку выбора размеров
+            loadWidthInput.value = gridWidth;
+            loadHeightInput.value = gridHeight;
+            loadSizeModal.classList.add('open');
+            imageInput.value = '';
+        });
+
+        closeLoadSizeModalBtn.addEventListener('click', () => {
+            loadSizeModal.classList.remove('open');
+            pendingImageFile = null;
+        });
+
+        confirmLoadBtn.addEventListener('click', () => {
+            if (!pendingImageFile) return;
+
+            const targetW = sanitizeInput(loadWidthInput, 32, 128);
+            const targetH = sanitizeInput(loadHeightInput, 32, 128);
+
+            widthInput.value = targetW;
+            heightInput.value = targetH;
+            initCanvas(false); // инициализируем холст с новыми размерами
 
             const reader = new FileReader();
             reader.onload = function(event) {
-                sourceImage.src = event.target.result;
-                imageModal.classList.add('open');
+                const img = new Image();
+                img.onload = function() {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = targetW;
+                    tempCanvas.height = targetH;
+                    const tCtx = tempCanvas.getContext('2d');
+                    tCtx.imageSmoothingEnabled = true;
+                    tCtx.drawImage(img, 0, 0, targetW, targetH);
+
+                    const imgData = tCtx.getImageData(0, 0, targetW, targetH).data;
+                    for (let y = 0; y < targetH; y++) {
+                        for (let x = 0; x < targetW; x++) {
+                            const idx = (y * targetW + x) * 4;
+                            const r = imgData[idx];
+                            const g = imgData[idx + 1];
+                            const b = imgData[idx + 2];
+                            const a = imgData[idx + 3];
+
+                            // Если пиксель прозрачный, делаем белым, иначе конвертируем в HEX
+                            if (a < 10) {
+                                pixels[y][x] = '#ffffff';
+                            } else {
+                                pixels[y][x] = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+                            }
+                        }
+                    }
+                    pushHistory();
+                    draw();
+                };
+                img.src = event.target.result;
             };
-            reader.readAsDataURL(file);
-            imageInput.value = '';
+            reader.readAsDataURL(pendingImageFile);
+
+            loadSizeModal.classList.remove('open');
+            pendingImageFile = null;
         });
 
         closeModalBtn.addEventListener('click', () => {
@@ -1142,19 +1243,16 @@
             setTool('pencil');
         });
 
-        // Модальное окно сохранения
         function populateQualityOptions() {
             exportQuality.innerHTML = '';
             const baseW = gridWidth;
             const baseH = gridHeight;
 
-            // Дефолтный размер холста
             const defaultOpt = document.createElement('option');
             defaultOpt.value = `${baseW}x${baseH}`;
             defaultOpt.textContent = `Canvas Size (${baseW} × ${baseH})`;
             exportQuality.appendChild(defaultOpt);
 
-            // Разрешения выше холста (2K, 4K и т.д., пропорциональные или стандартные)
             const standardQualities = [
                 { name: 'HD (1280 × 720)', w: 1280, h: 720 },
                 { name: 'Full HD (1920 × 1080)', w: 1920, h: 1080 },
@@ -1174,6 +1272,7 @@
 
         saveModalOpenBtn.addEventListener('click', () => {
             populateQualityOptions();
+            keepGridCheckbox.checked = false; // По дефолту выключено
             saveModal.classList.add('open');
         });
 
@@ -1184,8 +1283,8 @@
         confirmSaveBtn.addEventListener('click', () => {
             const format = exportFormat.value;
             const [qW, qH] = exportQuality.value.split('x').map(Number);
+            const keepGrid = keepGridCheckbox.checked;
 
-            // Создаем временный холст нужного разрешения для четкого экспорта пикселей
             const exportCanvas = document.createElement('canvas');
             exportCanvas.width = qW;
             exportCanvas.height = qH;
@@ -1195,6 +1294,7 @@
             const cellW = qW / gridWidth;
             const cellH = qH / gridHeight;
 
+            // Отрисовка пикселей
             for (let y = 0; y < gridHeight; y++) {
                 for (let x = 0; x < gridWidth; x++) {
                     eCtx.fillStyle = pixels[y][x];
@@ -1202,15 +1302,40 @@
                 }
             }
 
+            // Отрисовка сетки, если включен keepGrid
+            if (keepGrid && cellW >= 4 && cellH >= 4) {
+                eCtx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+                eCtx.lineWidth = Math.max(1, Math.floor(cellW / 16));
+                eCtx.beginPath();
+                for (let i = 0; i <= gridWidth; i++) {
+                    let pos = i * cellW;
+                    eCtx.moveTo(pos, 0);
+                    eCtx.lineTo(pos, qH);
+                }
+                for (let j = 0; j <= gridHeight; j++) {
+                    let pos = j * cellH;
+                    eCtx.moveTo(0, pos);
+                    eCtx.lineTo(qW, pos);
+                }
+                eCtx.stroke();
+            }
+
             let link = document.createElement('a');
             link.download = `pixel-art-${qW}x${qH}.${format}`;
 
             if (format === 'svg') {
-                // Генерация SVG
                 let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${gridWidth} ${gridHeight}" width="${qW}" height="${qH}">`;
                 for (let y = 0; y < gridHeight; y++) {
                     for (let x = 0; x < gridWidth; x++) {
                         svgContent += `<rect x="${x}" y="${y}" width="1" height="1" fill="${pixels[y][x]}"/>`;
+                    }
+                }
+                if (keepGrid) {
+                    for (let i = 0; i <= gridWidth; i++) {
+                        svgContent += `<line x1="${i}" y1="0" x2="${i}" y2="${gridHeight}" stroke="rgba(0,0,0,0.15)" stroke-width="0.05"/>`;
+                    }
+                    for (let j = 0; j <= gridHeight; j++) {
+                        svgContent += `<line x1="0" y1="${j}" x2="${gridWidth}" y2="${j}" stroke="rgba(0,0,0,0.15)" stroke-width="0.05"/>`;
                     }
                 }
                 svgContent += `</svg>`;
@@ -1218,7 +1343,6 @@
                 link.href = URL.createObjectURL(blob);
                 link.click();
             } else if (format === 'ico') {
-                // Для ICO экспортируем как PNG (браузеры отлично поддерживают PNG-контейнеры в ICO или конвертируют)
                 link.href = exportCanvas.toDataURL('image/png');
                 link.download = `pixel-art-${qW}x${qH}.ico`;
                 link.click();
