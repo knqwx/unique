@@ -268,7 +268,7 @@
         let isPanning = false;
         let currentColor = '#000000';
         
-        const DISPLAY_SIZE = 512; // Физический размер холста на экране
+        const DISPLAY_SIZE = 512;
         let panX = 0;
         let panY = 0;
         let scale = 1;
@@ -305,7 +305,6 @@
             gridWidth = parsed.width;
             gridHeight = parsed.height;
 
-            // Холст всегда одного физического размера
             canvas.width = DISPLAY_SIZE;
             canvas.height = DISPLAY_SIZE;
             canvas.style.width = `${DISPLAY_SIZE}px`;
@@ -400,21 +399,23 @@
             }
         }
 
-        // Правильный зум относительно курсора с использованием scale
-        canvas.addEventListener('wheel', (e) => {
+        // Исправленный зум относительно позиции курсора мыши
+        workspace.addEventListener('wheel', (e) => {
             e.preventDefault();
 
             const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
             let newScale = scale * zoomFactor;
 
-            if (newScale < 0.2 || newScale > 20) return;
+            if (newScale < 0.1 || newScale > 30) return;
 
-            const rect = canvasWrapper.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
+            // Получаем координаты курсора относительно рабочего пространства
+            const wsRect = workspace.getBoundingClientRect();
+            const mouseX = e.clientX - wsRect.left;
+            const mouseY = e.clientY - wsRect.top;
 
-            panX = e.clientX - mouseX * zoomFactor;
-            panY = e.clientY - mouseY * zoomFactor;
+            // Пересчитываем смещение так, чтобы точка под курсором оставалась на месте
+            panX = mouseX - (mouseX - panX) * (newScale / scale);
+            panY = mouseY - (mouseY - panY) * (newScale / scale);
             scale = newScale;
 
             updateTransform();
