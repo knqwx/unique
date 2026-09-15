@@ -82,48 +82,12 @@
             color: #ffffff;
         }
 
-        /* Основной контейнер под шапкой */
+        /* Основной контейнер */
         .app-container {
             display: flex;
             flex: 1;
             height: calc(100vh - 50px);
-        }
-
-        /* Левая панель инструментов */
-        .sidebar {
-            width: 60px;
-            background: #21262d;
-            border-right: 1px solid #303642;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-top: 15px;
-            gap: 10px;
-        }
-
-        .tool-btn {
-            width: 40px;
-            height: 40px;
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 6px;
-            color: #8b949e;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .tool-btn:hover {
-            background: #303642;
-            color: #c9d1d9;
-        }
-
-        .tool-btn.active {
-            background: #38404d;
-            color: #58a6ff;
-            border-color: #484f58;
+            position: relative;
         }
 
         /* Рабочая область */
@@ -151,11 +115,62 @@
             image-rendering: crisp-edges;
             cursor: crosshair;
         }
+
+        /* Правая панель в виде прямоугольника со скруглениями */
+        .tools-panel {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            width: 220px;
+            background: #21262d;
+            border: 1px solid #303642;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .panel-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #8b949e;
+            margin-bottom: 4px;
+        }
+
+        .tool-btn {
+            width: 100%;
+            height: 38px;
+            background: #303642;
+            border: 1px solid #484f58;
+            border-radius: 6px;
+            color: #c9d1d9;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 12px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .tool-btn:hover {
+            background: #38404d;
+            border-color: #58a6ff;
+        }
+
+        .tool-btn.active {
+            background: #38404d;
+            color: #58a6ff;
+            border-color: #58a6ff;
+        }
     </style>
 </head>
 <body>
 
-    <!-- Верхняя панель с настройками холста и сетки -->
+    <!-- Верхняя панель -->
     <div class="top-bar">
         <div class="controls-group">
             <label for="sizeInput">Size:</label>
@@ -166,19 +181,21 @@
         </div>
     </div>
 
-    <!-- Основной макет: панель инструментов слева, холст по центру -->
+    <!-- Основной макет -->
     <div class="app-container">
-        <div class="sidebar">
-            <button class="tool-btn active" title="Pencil">
-                <!-- Иконка карандаша -->
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
-            </button>
-        </div>
-
         <div class="workspace">
             <div class="canvas-wrapper">
                 <canvas id="myCanvas"></canvas>
             </div>
+        </div>
+
+        <!-- Правая панель-прямоугольник с кнопками -->
+        <div class="tools-panel">
+            <div class="panel-title">Tools</div>
+            <button class="tool-btn active" id="pencilBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
+                Pencil
+            </button>
         </div>
     </div>
 
@@ -191,6 +208,7 @@
         let gridSize = 32;
         let isGridOn = true;
         let pixels = [];
+        let isDrawing = false;
 
         function initCanvas() {
             let size = parseInt(sizeInput.value);
@@ -240,7 +258,36 @@
             }
         }
 
-        // Автоматическое обновление размера холста при изменении цифры в инпуте
+        // Рисование на холсте
+        function getCursorPosition(e) {
+            const rect = canvas.getBoundingClientRect();
+            const pixelSize = canvas.width / gridSize;
+            const x = Math.floor((e.clientX - rect.left) / pixelSize);
+            const y = Math.floor((e.clientY - rect.top) / pixelSize);
+            return { x, y };
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            paintPixel(e);
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDrawing) paintPixel(e);
+        });
+
+        function paintPixel(e) {
+            const { x, y } = getCursorPosition(e);
+            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+                pixels[y][x] = '#000000'; // Карандаш рисует черным цветом
+                draw();
+            }
+        }
+
         sizeInput.addEventListener('input', initCanvas);
 
         gridBtn.addEventListener('click', () => {
