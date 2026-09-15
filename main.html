@@ -44,19 +44,30 @@
             color: #8b949e;
         }
 
-        input[type="text"] {
+        .size-inputs {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .size-inputs span {
+            color: #8b949e;
+            font-size: 13px;
+        }
+
+        input[type="text"], input[type="number"] {
             background: #303642;
             border: 1px solid #484f58;
             color: #c9d1d9;
             padding: 5px 8px;
             border-radius: 4px;
-            width: 70px;
+            width: 50px;
             outline: none;
             font-size: 13px;
             text-align: center;
         }
 
-        input[type="text"]:focus {
+        input[type="text"]:focus, input[type="number"]:focus {
             border-color: #58a6ff;
         }
 
@@ -146,45 +157,14 @@
             gap: 6px;
         }
 
-        .tool-btn {
-            width: 100%;
-            height: 38px;
-            background: #303642;
-            border: 1px solid #484f58;
-            border-radius: 6px;
-            color: #c9d1d9;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 12px;
-            cursor: pointer;
-            font-size: 13px;
-            transition: all 0.2s;
-        }
-
-        .tool-btn:hover {
-            background: #38404d;
-            border-color: #58a6ff;
-        }
-
-        .tool-btn.active {
-            background: #38404d;
-            color: #58a6ff;
-            border-color: #58a6ff;
-        }
-
         .color-dropdown {
-            display: none;
+            display: flex;
             background: #161b22;
             border: 1px solid #303642;
             border-radius: 6px;
             padding: 10px;
             gap: 8px;
             flex-direction: column;
-        }
-
-        .color-dropdown.open {
-            display: flex;
         }
 
         .color-row {
@@ -219,8 +199,12 @@
 
     <div class="top-bar">
         <div class="controls-group">
-            <label for="sizeInput">Size:</label>
-            <input type="text" id="sizeInput" value="32x32">
+            <label>Size:</label>
+            <div class="size-inputs">
+                <input type="number" id="widthInput" value="32" min="1" max="128">
+                <span>×</span>
+                <input type="number" id="heightInput" value="32" min="1" max="128">
+            </div>
         </div>
         <div class="controls-group">
             <button id="gridBtn" class="active-grid">Grid: On</button>
@@ -244,7 +228,7 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
                     Pencil
                 </button>
-                <div class="color-dropdown open" id="colorDropdown">
+                <div class="color-dropdown" id="colorDropdown">
                     <div class="color-row">
                         <span>Color</span>
                         <input type="color" id="colorPicker" value="#000000">
@@ -257,7 +241,8 @@
     <script>
         const canvas = document.getElementById('myCanvas');
         const ctx = canvas.getContext('2d');
-        const sizeInput = document.getElementById('sizeInput');
+        const widthInput = document.getElementById('widthInput');
+        const heightInput = document.getElementById('heightInput');
         const gridBtn = document.getElementById('gridBtn');
         const resetPosBtn = document.getElementById('resetPosBtn');
         const colorPicker = document.getElementById('colorPicker');
@@ -281,25 +266,12 @@
 
         window.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        function parseSize(str) {
-            str = str.replace(/\s+/g, '').toLowerCase();
-            let parts = str.split('x');
-            if (parts.length === 2) {
-                let w = parseInt(parts[0]);
-                let h = parseInt(parts[1]);
-                if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
-                    if (w > 128) w = 128;
-                    if (h > 128) h = 128;
-                    return { width: w, height: h };
-                }
-            } else if (parts.length === 1) {
-                let v = parseInt(parts[0]);
-                if (!isNaN(v) && v > 0) {
-                    if (v > 128) v = 128;
-                    return { width: v, height: v };
-                }
-            }
-            return null;
+        function validateAndGetSize(input, min = 1, max = 128) {
+            let val = parseInt(input.value);
+            if (isNaN(val) || val < min) val = min;
+            if (val > max) val = max;
+            input.value = val;
+            return val;
         }
 
         function resetPosition() {
@@ -310,11 +282,8 @@
         }
 
         function initCanvas() {
-            let parsed = parseSize(sizeInput.value);
-            if (!parsed) return;
-
-            gridWidth = parsed.width;
-            gridHeight = parsed.height;
+            gridWidth = validateAndGetSize(widthInput);
+            gridHeight = validateAndGetSize(heightInput);
 
             canvas.width = DISPLAY_SIZE;
             canvas.height = DISPLAY_SIZE;
@@ -429,7 +398,8 @@
             currentColor = e.target.value;
         });
 
-        sizeInput.addEventListener('input', initCanvas);
+        widthInput.addEventListener('input', initCanvas);
+        heightInput.addEventListener('input', initCanvas);
 
         gridBtn.addEventListener('click', () => {
             isGridOn = !isGridOn;
