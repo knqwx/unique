@@ -152,6 +152,12 @@
             gap: 6px;
         }
 
+        .tool-row {
+            display: flex;
+            gap: 6px;
+            width: 100%;
+        }
+
         .tool-btn {
             width: 100%;
             height: 38px;
@@ -166,6 +172,17 @@
             cursor: pointer;
             font-size: 13px;
             transition: all 0.2s;
+        }
+
+        .tool-row .tool-btn {
+            flex: 1;
+        }
+
+        .tool-row .icon-only-btn {
+            width: 38px;
+            padding: 0;
+            justify-content: center;
+            flex: 0 0 38px;
         }
 
         .tool-btn:hover {
@@ -216,6 +233,71 @@
             border: 1px solid #484f58;
             border-radius: 4px;
         }
+
+        /* Модальное окно для выбора цвета с картинки */
+        .image-picker-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(13, 17, 23, 0.85);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .image-picker-modal.open {
+            display: flex;
+        }
+
+        .modal-content {
+            position: relative;
+            max-width: 90vw;
+            max-height: 85vh;
+            background: #161b22;
+            border: 1px solid #303642;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #c9d1d9;
+        }
+
+        .image-container {
+            overflow: auto;
+            max-height: calc(85vh - 80px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0d1117;
+            border-radius: 4px;
+            border: 1px solid #303642;
+            position: relative;
+        }
+
+        #sourceImage {
+            display: block;
+            max-width: 100%;
+            max-height: 70vh;
+            cursor: crosshair;
+            object-fit: contain;
+        }
     </style>
 </head>
 <body>
@@ -253,16 +335,37 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L20 20Z"></path><path d="M17 17L7 7"></path></svg>
                     Eraser
                 </button>
-                <button class="tool-btn" id="eyedropperBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22l5.5-1.5L21.5 6.5l-3-3L5 16.5L2 22z"></path><path d="M13.5 6.5l4 4"></path></svg>
-                    Eyedropper
-                </button>
+                <div class="tool-row">
+                    <button class="tool-btn" id="eyedropperBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22l5.5-1.5L21.5 6.5l-3-3L5 16.5L2 22z"></path><path d="M13.5 6.5l4 4"></path></svg>
+                        Eyedropper
+                    </button>
+                    <button class="tool-btn icon-only-btn" id="uploadImageBtn" title="Загрузить картинку для пипетки">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    </button>
+                </div>
                 <div class="color-dropdown" id="colorDropdown">
                     <div class="color-row">
                         <span>Color</span>
                         <input type="color" id="colorPicker" value="#000000">
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Скрытый инпут для выбора файла изображения -->
+    <input type="file" id="imageInput" accept="image/*" style="display: none;">
+
+    <!-- Модальное окно для выбора цвета с картинки -->
+    <div class="image-picker-modal" id="imageModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">Кликните по картинке, чтобы выбрать цвет</span>
+                <button id="closeModalBtn">Закрыть</button>
+            </div>
+            <div class="image-container">
+                <img id="sourceImage" alt="Upload Image">
             </div>
         </div>
     </div>
@@ -281,6 +384,12 @@
         const pencilBtn = document.getElementById('pencilBtn');
         const eraserBtn = document.getElementById('eraserBtn');
         const eyedropperBtn = document.getElementById('eyedropperBtn');
+        const uploadImageBtn = document.getElementById('uploadImageBtn');
+        const imageInput = document.getElementById('imageInput');
+
+        const imageModal = document.getElementById('imageModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const sourceImage = document.getElementById('sourceImage');
 
         let gridWidth = 32;
         let gridHeight = 32;
@@ -290,7 +399,6 @@
         let isPanning = false;
         let currentColor = '#000000';
         let currentTool = 'pencil'; // 'pencil', 'eraser', 'eyedropper'
-        let previousTool = 'pencil'; // для возврата после пипетки
         
         const DISPLAY_SIZE = 512;
         let panX = 0;
@@ -420,21 +528,16 @@
                     pixels[y][x] = currentColor;
                     draw();
                 } else if (currentTool === 'eraser') {
-                    pixels[y][x] = '#ffffff'; // Стираем в белый цвет
+                    pixels[y][x] = '#ffffff';
                     draw();
                 } else if (currentTool === 'eyedropper') {
                     currentColor = pixels[y][x];
                     colorPicker.value = currentColor;
-                    // Возвращаем предыдущий инструмент после выбора цвета
-                    setTool(previousTool);
                 }
             }
         }
 
         function setTool(toolName) {
-            if (currentTool !== 'eyedropper') {
-                previousTool = currentTool;
-            }
             currentTool = toolName;
 
             pencilBtn.classList.remove('active');
@@ -449,6 +552,55 @@
         pencilBtn.addEventListener('click', () => setTool('pencil'));
         eraserBtn.addEventListener('click', () => setTool('eraser'));
         eyedropperBtn.addEventListener('click', () => setTool('eyedropper'));
+
+        // Загрузка картинки для пипетки
+        uploadImageBtn.addEventListener('click', () => {
+            imageInput.click();
+        });
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                sourceImage.src = event.target.result;
+                imageModal.classList.add('open');
+            };
+            reader.readAsDataURL(file);
+            imageInput.value = ''; // Сброс для возможности повторного выбора того же файла
+        });
+
+        closeModalBtn.addEventListener('click', () => {
+            imageModal.classList.remove('open');
+        });
+
+        // Выбор цвета по клику на загруженное изображение через скрытый холст
+        sourceImage.addEventListener('click', (e) => {
+            const canvasImg = document.createElement('canvas');
+            const ctxImg = canvasImg.getContext('2d');
+            canvasImg.width = sourceImage.naturalWidth;
+            canvasImg.height = sourceImage.naturalHeight;
+            ctxImg.drawImage(sourceImage, 0, 0);
+
+            const rect = sourceImage.getBoundingClientRect();
+            const scaleX = sourceImage.naturalWidth / rect.width;
+            const scaleY = sourceImage.naturalHeight / rect.height;
+
+            const clickX = (e.clientX - rect.left) * scaleX;
+            const clickY = (e.clientY - rect.top) * scaleY;
+
+            const pixelData = ctxImg.getImageData(clickX, clickY, 1, 1).data;
+            const hex = '#' + [pixelData[0], pixelData[1], pixelData[2]]
+                .map(x => x.toString(16).padStart(2, '0'))
+                .join('');
+
+            currentColor = hex;
+            colorPicker.value = hex;
+
+            imageModal.classList.remove('open');
+            setTool('eyedropper');
+        });
 
         workspace.addEventListener('wheel', (e) => {
             e.preventDefault();
