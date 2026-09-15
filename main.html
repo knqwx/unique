@@ -94,6 +94,12 @@
             color: #ffffff;
         }
 
+        button.active-center {
+            background: #1f6feb;
+            border-color: #388bfd;
+            color: #ffffff;
+        }
+
         .app-container {
             display: flex;
             flex: 1;
@@ -131,7 +137,7 @@
             position: absolute;
             right: 20px;
             top: 20px;
-            width: 240px;
+            width: 250px;
             background: #21262d;
             border: 1px solid #303642;
             border-radius: 8px;
@@ -220,7 +226,7 @@
         }
 
         .shape-select {
-            width: 100%;
+            flex: 1;
             height: 38px;
             background: #303642;
             border: 1px solid #484f58;
@@ -345,6 +351,7 @@
         </div>
         <div class="controls-group">
             <button id="gridBtn" class="active-grid">Grid: On</button>
+            <button id="centerBtn">Center: Off</button>
         </div>
         <div class="controls-group">
             <button id="resetPosBtn">Reset Position</button>
@@ -389,6 +396,7 @@
                         <option value="circle">Circle</option>
                         <option value="line">Line</option>
                     </select>
+                    <input type="text" class="brush-size-input" id="shapeSizeInput" value="1" maxlength="3" title="Толщина линии фигуры">
                 </div>
                 <div class="tool-row">
                     <button class="tool-btn" id="eyedropperBtn">
@@ -431,6 +439,7 @@
         const widthInput = document.getElementById('widthInput');
         const heightInput = document.getElementById('heightInput');
         const gridBtn = document.getElementById('gridBtn');
+        const centerBtn = document.getElementById('centerBtn');
         const resetPosBtn = document.getElementById('resetPosBtn');
         const colorPicker = document.getElementById('colorPicker');
         const workspace = document.getElementById('workspace');
@@ -447,6 +456,7 @@
 
         const pencilSizeInput = document.getElementById('pencilSizeInput');
         const eraserSizeInput = document.getElementById('eraserSizeInput');
+        const shapeSizeInput = document.getElementById('shapeSizeInput');
 
         const imageModal = document.getElementById('imageModal');
         const closeModalBtn = document.getElementById('closeModalBtn');
@@ -455,13 +465,14 @@
         let gridWidth = 32;
         let gridHeight = 32;
         let isGridOn = true;
+        let isCenterOn = false;
         let pixels = [];
         let isDrawing = false;
         let isPanning = false;
         let currentColor = '#000000';
         let currentTool = 'pencil'; // 'pencil', 'eraser', 'bucket', 'shape', 'eyedropper'
         
-        const DISPLAY_SIZE = 768; // Увеличено с 512 до 768 для удобства
+        const DISPLAY_SIZE = 768;
         let panX = 0;
         let panY = 0;
         let scale = 1;
@@ -470,7 +481,7 @@
 
         let shapeStartX = 0;
         let shapeStartY = 0;
-        let pixelsBackup = null; // Для превью фигур
+        let pixelsBackup = null;
 
         window.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -527,6 +538,7 @@
                 }
             }
 
+            // Отрисовка сетки
             if (isGridOn && cellW >= 4 && cellH >= 4) {
                 ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
                 ctx.lineWidth = 1;
@@ -542,6 +554,24 @@
                     ctx.moveTo(0, pos);
                     ctx.lineTo(canvas.width, pos);
                 }
+                ctx.stroke();
+            }
+
+            // Отрисовка центра холста
+            if (isCenterOn) {
+                ctx.strokeStyle = 'rgba(235, 87, 87, 0.75)';
+                ctx.lineWidth = Math.max(1, cellW / 4);
+
+                let centerX = (gridWidth / 2) * cellW;
+                let centerY = (gridHeight / 2) * cellH;
+
+                // Вертикальная линия центра
+                ctx.beginPath();
+                ctx.moveTo(centerX, 0);
+                ctx.lineTo(centerX, canvas.height);
+                // Горизонтальная линия центра
+                ctx.moveTo(0, centerY);
+                ctx.lineTo(canvas.width, centerY);
                 ctx.stroke();
             }
         }
@@ -592,7 +622,8 @@
                 if (currentTool === 'shape') {
                     if (pixelsBackup) {
                         pixels = pixelsBackup.map(row => [...row]);
-                        drawShape(shapeStartX, shapeStartY, x, y, shapeTypeSelect.value, currentColor);
+                        const shapeThickness = sanitizeInput(shapeSizeInput, 1, Math.max(gridWidth, gridHeight));
+                        drawShape(shapeStartX, shapeStartY, x, y, shapeTypeSelect.value, currentColor, shapeThickness);
                         draw();
                     }
                 } else {
@@ -639,7 +670,6 @@
             if (changed) draw();
         }
 
-        // Заливка (Paint Bucket / Flood Fill)
         function floodFill(startX, startY, targetColor, fillColor) {
             if (targetColor === fillColor) return;
             const queue = [[startX, startY]];
@@ -662,8 +692,8 @@
             }
         }
 
-        // Отрисовка фигур (Прямоугольник, Круг, Линия)
-        function drawShape(x1, y1, x2, y2, type, color) {
+        // Правильный и плавный алгоритм рисования фигур (включая толстые линии, круги и прямоугольники)
+        function drawShape(x1, y1, x2, y2, type, color, thickness) {
             if (type === 'rect') {
                 let minX = Math.min(x1, x2);
                 let maxX = Math.max(x1, x2);
@@ -672,7 +702,8 @@
 
                 for (let y = minY; y <= maxY; y++) {
                     for (let x = minX; x <= maxX; x++) {
-                        if (x === minX || x === maxX || y === minY || y === maxY) {
+                        // Рисуем рамку с учетом толщины
+                        if (x - minX < thickness || maxX - x < thickness || y - minY < thickness || maxY - y < thickness) {
                             if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
                                 pixels[y][x] = color;
                             }
@@ -680,25 +711,33 @@
                     }
                 }
             } else if (type === 'circle') {
+                // Точный пиксельный алгоритм для окружности по радиусу (Midpoint circle / distance-based)
                 let cx = (x1 + x2) / 2;
                 let cy = (y1 + y2) / 2;
                 let rx = Math.abs(x2 - x1) / 2;
                 let ry = Math.abs(y2 - y1) / 2;
 
-                // Упрощенный алгоритм для пиксельного эллипса/круга
+                // Для идеального круга берем максимальное или среднее значение радиуса
+                let r = Math.max(rx, ry);
+                let center_x = x1 < x2 ? x1 + rx : x2 + rx;
+                let center_y = y1 < y2 ? y1 + ry : y2 + ry;
+
                 for (let y = 0; y < gridHeight; y++) {
                     for (let x = 0; x < gridWidth; x++) {
-                        let dx = (x - cx) / (rx || 0.1);
-                        let dy = (y - cy) / (ry || 0.1);
-                        // Проверяем границу кольца
-                        let dist = dx * dx + dy * dy;
-                        if (dist <= 1.0 && dist >= 0.6) {
-                            pixels[y][x] = color;
+                        let dx = x + 0.5 - center_x;
+                        let dy = y + 0.5 - center_y;
+                        let dist = Math.sqrt(dx * dx + dy * dy);
+
+                        // Рисуем контур окружности с заданной толщиной
+                        if (Math.abs(dist - r) <= (thickness / 2) || (r === 0 && dist <= thickness / 2)) {
+                            if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
+                                pixels[y][x] = color;
+                            }
                         }
                     }
                 }
             } else if (type === 'line') {
-                // Алгоритм Брезенхэма для линий
+                // Утолщенный алгоритм Брезенхэма для линий
                 let dx = Math.abs(x2 - x1);
                 let dy = Math.abs(y2 - y1);
                 let sx = (x1 < x2) ? 1 : -1;
@@ -709,9 +748,9 @@
                 let currY = y1;
 
                 while (true) {
-                    if (currX >= 0 && currX < gridWidth && currY >= 0 && currY < gridHeight) {
-                        pixels[currY][currX] = color;
-                    }
+                    // Рисуем кисть в каждой точке линии для поддержки толщины
+                    applyBrush(currX, currY, thickness, color);
+
                     if (currX === x2 && currY === y2) break;
                     let e2 = 2 * err;
                     if (e2 > -dy) {
@@ -748,11 +787,10 @@
         shapeBtn.addEventListener('click', () => setTool('shape'));
         eyedropperBtn.addEventListener('click', () => setTool('eyedropper'));
 
-        // Обработка полей размера кисти
         pencilSizeInput.addEventListener('input', () => sanitizeInput(pencilSizeInput, 1, 128));
         eraserSizeInput.addEventListener('input', () => sanitizeInput(eraserSizeInput, 1, 128));
+        shapeSizeInput.addEventListener('input', () => sanitizeInput(shapeSizeInput, 1, 128));
 
-        // Загрузка картинки для пипетки
         uploadImageBtn.addEventListener('click', () => {
             imageInput.click();
         });
@@ -774,7 +812,6 @@
             imageModal.classList.remove('open');
         });
 
-        // Выбор цвета по клику на загруженное изображение + авто-переключение на карандаш
         sourceImage.addEventListener('click', (e) => {
             const canvasImg = document.createElement('canvas');
             const ctxImg = canvasImg.getContext('2d');
@@ -848,6 +885,13 @@
             isGridOn = !isGridOn;
             gridBtn.textContent = isGridOn ? 'Grid: On' : 'Grid: Off';
             gridBtn.classList.toggle('active-grid', isGridOn);
+            draw();
+        });
+
+        centerBtn.addEventListener('click', () => {
+            isCenterOn = !isCenterOn;
+            centerBtn.textContent = isCenterOn ? 'Center: On' : 'Center: Off';
+            centerBtn.classList.toggle('active-center', isCenterOn);
             draw();
         });
 
