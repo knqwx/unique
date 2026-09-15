@@ -51,9 +51,10 @@
             color: #c9d1d9;
             padding: 5px 8px;
             border-radius: 4px;
-            width: 60px;
+            width: 70px;
             outline: none;
             font-size: 13px;
+            text-align: center;
         }
 
         input[type="text"]:focus {
@@ -89,25 +90,26 @@
             flex: 1;
             height: calc(100vh - 50px);
             position: relative;
+            overflow: hidden;
         }
 
-        /* Рабочая область */
+        /* Рабочая область (теперь тут панорамирование) */
         .workspace {
             flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             background-color: #252a33;
-            overflow: auto;
-            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            cursor: default;
         }
 
         .canvas-wrapper {
+            position: absolute;
             background: #ffffff;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
             border-radius: 4px;
             overflow: hidden;
             line-height: 0;
+            transform-origin: 0 0;
         }
 
         canvas {
@@ -223,7 +225,8 @@
     <div class="top-bar">
         <div class="controls-group">
             <label for="sizeInput">Size:</label>
-            <input type="text" id="sizeInput" value="32">
+            <!-- Поддерживает формат вида 32x16 или просто число -->
+            <input type="text" id="sizeInput" value="32x32">
         </div>
         <div class="controls-group">
             <button id="gridBtn" class="active-grid">Grid: On</button>
@@ -232,8 +235,8 @@
 
     <!-- Основной макет -->
     <div class="app-container">
-        <div class="workspace">
-            <div class="canvas-wrapper">
+        <div class="workspace" id="workspace">
+            <div class="canvas-wrapper" id="canvasWrapper">
                 <canvas id="myCanvas"></canvas>
             </div>
         </div>
@@ -262,39 +265,83 @@
         const sizeInput = document.getElementById('sizeInput');
         const gridBtn = document.getElementById('gridBtn');
         const colorPicker = document.getElementById('colorPicker');
+        const workspace = document.getElementById('workspace');
+        const canvasWrapper = document.getElementById('canvasWrapper');
 
-        let gridSize = 32;
+        let gridWidth = 32;
+        let gridHeight = 32;
         let isGridOn = true;
         let pixels = [];
         let isDrawing = false;
+        let isPanning = false;
         let currentColor = '#000000';
-        let pixelSize = 16; // Текущий размер одного пикселя на экране (масштаб)
+        let pixelSize = 16; 
+
+        // Координаты смещения холста для панорамирования ПКМ
+        let panX = 0;
+        let panY = 0;
+        let startX = 0;
+        let startY = 0;
+
+        // Отключаем стандартное контекстное меню при клике ПКМ
+        window.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        function parseSize(str) {
+            str = str.replace(/\s+/g, '').toLowerCase();
+            let parts = str.split('x');
+            if (parts.length === 2) {
+                let w = parseInt(parts[0]);
+                let h = parseInt(parts[1]);
+                if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
+                    return { width: w, height: h };
+                }
+            } else if (parts.length === 1) {
+                let v = parseInt(parts[0]);
+                if (!isNaN(v) && v > 0) {
+                    return { width: v, height: v };
+                }
+            }
+            return null;
+        }
 
         function initCanvas() {
-            let size = parseInt(sizeInput.value);
-            if (isNaN(size) || size < 1) size = 1;
-            gridSize = size;
+            let parsed = parseSize(sizeInput.value);
+            if (!parsed) return; // Если введено что-то некорректное, ждем пока пользователь допишет
 
-            // Сбрасываем дефолтный масштаб в зависимости от размера сетки
-            pixelSize = Math.max(4, Math.floor(512 / gridSize));
+            gridWidth = parsed.width;
+            gridHeight = parsed.height;
 
             updateCanvasDimensions();
-            pixels = Array(gridSize).fill(null).map(() => Array(gridSize).fill('#ffffff'));
+            
+            // Инициализация сетки пикселей [y][x]
+            pixels = Array(gridHeight).fill(null).map(() => Array(gridWidth).fill('#ffffff'));
+            
+            // Центрируем холст при старте
+            panX = (workspace.clientWidth - canvas.width) / 2;
+            panY = (workspace.clientHeight - canvas.height) / 2;
+            updateCanvasTransform();
+
             draw();
         }
 
         function updateCanvasDimensions() {
-            canvas.width = gridSize * pixelSize;
-            canvas.height = gridSize * pixelSize;
+            canvas.width = gridWidth * pixelSize;
+            canvas.height = gridHeight * pixelSize;
             canvas.style.width = `${canvas.width}px`;
             canvas.style.height = `${canvas.height}px`;
+        }
+
+        function updateCanvasTransform() {
+            canvasWrapper.style.transform = `translate(${panX}px, ${panY}px)`;
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            for (let y = 0; y < gridSize; y++) {
-                for (let x = 0; x < gridSize; x++) {
+            for (let y = 0; y < gridHeight; y++) {
+                for (let x = 0; x < gridWidth; x++) {
                     ctx.fillStyle = pixels[y][x];
                     ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
                 }
@@ -305,10 +352,13 @@
                 ctx.lineWidth = 1;
                 
                 ctx.beginPath();
-                for (let i = 0; i <= gridSize; i++) {
+                for (let i = 0; i <= gridWidth; i++) {
                     let pos = i * pixelSize;
                     ctx.moveTo(pos, 0);
                     ctx.lineTo(pos, canvas.height);
+                }
+                for (let j = 0; j <= gridHeight; j++) {
+                    let pos = j * pixelSize;
                     ctx.moveTo(0, pos);
                     ctx.lineTo(canvas.width, pos);
                 }
@@ -323,41 +373,66 @@
             return { x, y };
         }
 
+        // Обработка мыши на холсте
         canvas.addEventListener('mousedown', (e) => {
-            isDrawing = true;
-            paintPixel(e);
+            if (e.button === 0) { // ЛКМ — рисование
+                isDrawing = true;
+                paintPixel(e);
+            } else if (e.button === 2) { // ПКМ — панорамирование
+                isPanning = true;
+                startX = e.clientX - panX;
+                startY = e.clientY - panY;
+            }
         });
 
-        window.addEventListener('mouseup', () => {
-            isDrawing = false;
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 0) isDrawing = false;
+            if (e.button === 2) isPanning = false;
         });
 
-        canvas.addEventListener('mousemove', (e) => {
-            if (isDrawing) paintPixel(e);
+        window.addEventListener('mousemove', (e) => {
+            if (isDrawing) {
+                paintPixel(e);
+            } else if (isPanning) {
+                panX = e.clientX - startX;
+                panY = e.clientY - startY;
+                updateCanvasTransform();
+            }
         });
 
         function paintPixel(e) {
             const { x, y } = getCursorPosition(e);
-            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+            if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
                 pixels[y][x] = currentColor;
                 draw();
             }
         }
 
-        // Приближение и отдаление колесиком мыши строго над холстом
+        // Приближение/отдаление колесиком мыши строго над холстом
         canvas.addEventListener('wheel', (e) => {
-            e.preventDefault(); // Отключаем стандартную прокрутку страницы
+            e.preventDefault();
 
+            let oldPixelSize = pixelSize;
             if (e.deltaY < 0) {
-                // Приближение
                 if (pixelSize < 64) pixelSize += 2;
             } else {
-                // Отдаление
                 if (pixelSize > 2) pixelSize -= 2;
             }
 
-            updateCanvasDimensions();
-            draw();
+            if (pixelSize !== oldPixelSize) {
+                // Зум относительно центра или курсора
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                let scale = pixelSize / oldPixelSize;
+                panX = e.clientX - mouseX * scale;
+                panY = e.clientY - mouseY * scale;
+
+                updateCanvasDimensions();
+                updateCanvasTransform();
+                draw();
+            }
         }, { passive: false });
 
         colorPicker.addEventListener('input', (e) => {
