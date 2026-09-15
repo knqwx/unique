@@ -31,6 +31,7 @@
             align-items: center;
             padding: 0 20px;
             gap: 15px;
+            z-index: 10;
         }
 
         .controls-group {
@@ -44,7 +45,6 @@
             color: #8b949e;
         }
 
-        /* Поле ввода без стрелочек (тип text вместо number) */
         input[type="text"] {
             background: #303642;
             border: 1px solid #484f58;
@@ -131,6 +131,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            z-index: 10;
         }
 
         .panel-title {
@@ -174,7 +175,6 @@
             border-color: #58a6ff;
         }
 
-        /* Выпадающее меню выбора цвета под карандашом */
         .color-dropdown {
             display: none;
             background: #161b22;
@@ -223,7 +223,6 @@
     <div class="top-bar">
         <div class="controls-group">
             <label for="sizeInput">Size:</label>
-            <!-- Текстовое поле без стрелочек и ограничений -->
             <input type="text" id="sizeInput" value="32">
         </div>
         <div class="controls-group">
@@ -247,7 +246,6 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
                     Pencil
                 </button>
-                <!-- Выпадающее меню выбора цвета -->
                 <div class="color-dropdown open" id="colorDropdown">
                     <div class="color-row">
                         <span>Color</span>
@@ -270,30 +268,30 @@
         let pixels = [];
         let isDrawing = false;
         let currentColor = '#000000';
+        let pixelSize = 16; // Текущий размер одного пикселя на экране (масштаб)
 
         function initCanvas() {
             let size = parseInt(sizeInput.value);
-            
-            // Если введено не число или пустота, берем минимум 1, но верхнего лимита больше нет
             if (isNaN(size) || size < 1) size = 1;
             gridSize = size;
 
-            const displaySize = 512;
-            const pixelSize = Math.max(1, Math.floor(displaySize / gridSize));
-            
+            // Сбрасываем дефолтный масштаб в зависимости от размера сетки
+            pixelSize = Math.max(4, Math.floor(512 / gridSize));
+
+            updateCanvasDimensions();
+            pixels = Array(gridSize).fill(null).map(() => Array(gridSize).fill('#ffffff'));
+            draw();
+        }
+
+        function updateCanvasDimensions() {
             canvas.width = gridSize * pixelSize;
             canvas.height = gridSize * pixelSize;
             canvas.style.width = `${canvas.width}px`;
             canvas.style.height = `${canvas.height}px`;
-
-            pixels = Array(gridSize).fill(null).map(() => Array(gridSize).fill('#ffffff'));
-            
-            draw();
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const pixelSize = canvas.width / gridSize;
 
             for (let y = 0; y < gridSize; y++) {
                 for (let x = 0; x < gridSize; x++) {
@@ -320,7 +318,6 @@
 
         function getCursorPosition(e) {
             const rect = canvas.getBoundingClientRect();
-            const pixelSize = canvas.width / gridSize;
             const x = Math.floor((e.clientX - rect.left) / pixelSize);
             const y = Math.floor((e.clientY - rect.top) / pixelSize);
             return { x, y };
@@ -347,7 +344,22 @@
             }
         }
 
-        // Изменение цвета из палитры
+        // Приближение и отдаление колесиком мыши строго над холстом
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault(); // Отключаем стандартную прокрутку страницы
+
+            if (e.deltaY < 0) {
+                // Приближение
+                if (pixelSize < 64) pixelSize += 2;
+            } else {
+                // Отдаление
+                if (pixelSize > 2) pixelSize -= 2;
+            }
+
+            updateCanvasDimensions();
+            draw();
+        }, { passive: false });
+
         colorPicker.addEventListener('input', (e) => {
             currentColor = e.target.value;
         });
