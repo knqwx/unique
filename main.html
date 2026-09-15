@@ -44,7 +44,7 @@
             color: #8b949e;
         }
 
-        input[type="number"] {
+        input[type="text"] {
             background: #303642;
             border: 1px solid #484f58;
             color: #c9d1d9;
@@ -56,7 +56,7 @@
             text-align: center;
         }
 
-        input[type="number"]:focus {
+        input[type="text"]:focus {
             border-color: #58a6ff;
         }
 
@@ -226,9 +226,9 @@
     <div class="top-bar">
         <div class="controls-group">
             <label>Size:</label>
-            <input type="number" id="widthInput" value="32" min="1" max="128">
+            <input type="text" id="widthInput" value="32" maxlength="3">
             <span class="size-separator">×</span>
-            <input type="number" id="heightInput" value="32" min="1" max="128">
+            <input type="text" id="heightInput" value="32" maxlength="3">
         </div>
         <div class="controls-group">
             <button id="gridBtn" class="active-grid">Grid: On</button>
@@ -290,12 +290,24 @@
 
         window.addEventListener('contextmenu', (e) => e.preventDefault());
 
-        function validateAndGetSize(input, fallback) {
-            let val = parseInt(input.value);
-            if (isNaN(val) || val < 1) val = 1;
-            if (val > 128) val = 128;
+        function sanitizeInput(input, fallback) {
+            let val = input.value.replace(/[^0-9]/g, '');
+            
+            // Нельзя начинать с 0
+            if (val.startsWith('0')) {
+                val = val.replace(/^0+/, '');
+            }
+
+            if (val !== '') {
+                let num = parseInt(val, 10);
+                if (num > 128) {
+                    num = 128;
+                }
+                val = num.toString();
+            }
+
             input.value = val;
-            return val;
+            return val === '' ? fallback : parseInt(val, 10);
         }
 
         function resetPosition() {
@@ -306,8 +318,8 @@
         }
 
         function initCanvas() {
-            gridWidth = validateAndGetSize(widthInput, 32);
-            gridHeight = validateAndGetSize(heightInput, 32);
+            gridWidth = sanitizeInput(widthInput, 32);
+            gridHeight = sanitizeInput(heightInput, 32);
 
             canvas.width = DISPLAY_SIZE;
             canvas.height = DISPLAY_SIZE;
@@ -422,8 +434,26 @@
             currentColor = e.target.value;
         });
 
-        widthInput.addEventListener('input', initCanvas);
-        heightInput.addEventListener('input', initCanvas);
+        // Обработка ввода и нажатия Enter
+        widthInput.addEventListener('input', () => sanitizeInput(widthInput, 32));
+        widthInput.addEventListener('change', initCanvas);
+        widthInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                heightInput.focus();
+                heightInput.select();
+            }
+        });
+
+        heightInput.addEventListener('input', () => sanitizeInput(heightInput, 32));
+        heightInput.addEventListener('change', initCanvas);
+        heightInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                heightInput.blur();
+                initCanvas();
+            }
+        });
 
         gridBtn.addEventListener('click', () => {
             isGridOn = !isGridOn;
