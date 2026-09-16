@@ -379,12 +379,11 @@
             }
         }
 
-        // Логика выбора дорожек на таймлайне через ЛКМ
+        // Обработка клика ЛКМ по дорожкам таймлайна
         timelineTracks.forEach(track => {
             track.addEventListener('click', (e) => {
                 e.stopPropagation();
                 
-                // Проверяем, кликнули ли мы по уже выбранному треку, чтобы снять или переключить выделение
                 const isAlreadyActive = track.classList.contains('active-outline');
                 
                 timelineTracks.forEach(t => t.classList.remove('active-outline'));
@@ -398,15 +397,6 @@
 
                 updateTrimButtonState();
             });
-        });
-
-        // Сброс выбора дорожки таймлайна при клике в пустоту документа
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.bottom-line') && !e.target.closest('.preview-item')) {
-                timelineTracks.forEach(t => t.classList.remove('active-outline'));
-                isTimelineTrackSelected = false;
-                updateTrimButtonState();
-            }
         });
 
         fileInput.addEventListener('change', function(event) {
