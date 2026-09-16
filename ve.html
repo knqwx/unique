@@ -131,7 +131,8 @@
             border-color: #485059;
         }
 
-        .preview-item.active-outline {
+        .preview-item.active-outline,
+        .bottom-line.active-outline {
             border-color: #ffffff !important;
         }
 
@@ -314,6 +315,14 @@
             height: 40px;
             background-color: #33383d;
             border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+        
+        .bottom-line:hover {
+            border-color: #485059;
         }
     </style>
 </head>
@@ -340,8 +349,8 @@
             <div class="timeline-frames" id="framesContainer"></div>
             <div class="timeline-playhead" id="timelinePlayhead"></div>
         </div>
-        <div class="bottom-line"></div>
-        <div class="bottom-line"></div>
+        <div class="bottom-line" id="timelineTrack1"></div>
+        <div class="bottom-line" id="timelineTrack2"></div>
     </div>
 
     <script>
@@ -352,21 +361,53 @@
         const framesContainer = document.getElementById('framesContainer');
         const timelinePlayhead = document.getElementById('timelinePlayhead');
         const trimBtn = document.getElementById('trimBtn');
+        const timelineTracks = document.querySelectorAll('.bottom-line');
 
         let hasItems = false;
         let gridWrapper = null;
         let currentVideo = null;
         let currentClip = null;
         let isMediaSelected = false;
+        let isTimelineTrackSelected = false;
         let isMouseDownOnTimeline = false;
 
         function updateTrimButtonState() {
-            if (currentClip && currentClip.type.startsWith('video/') && isMediaSelected) {
+            if (currentClip && currentClip.type.startsWith('video/') && isMediaSelected && isTimelineTrackSelected) {
                 trimBtn.disabled = false;
             } else {
                 trimBtn.disabled = true;
             }
         }
+
+        // Логика выбора дорожек на таймлайне через ЛКМ
+        timelineTracks.forEach(track => {
+            track.addEventListener('click', (e) => {
+                e.stopPropagation();
+                
+                // Проверяем, кликнули ли мы по уже выбранному треку, чтобы снять или переключить выделение
+                const isAlreadyActive = track.classList.contains('active-outline');
+                
+                timelineTracks.forEach(t => t.classList.remove('active-outline'));
+
+                if (!isAlreadyActive) {
+                    track.classList.add('active-outline');
+                    isTimelineTrackSelected = true;
+                } else {
+                    isTimelineTrackSelected = false;
+                }
+
+                updateTrimButtonState();
+            });
+        });
+
+        // Сброс выбора дорожки таймлайна при клике в пустоту документа
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.bottom-line') && !e.target.closest('.preview-item')) {
+                timelineTracks.forEach(t => t.classList.remove('active-outline'));
+                isTimelineTrackSelected = false;
+                updateTrimButtonState();
+            }
+        });
 
         fileInput.addEventListener('change', function(event) {
             const files = event.target.files;
@@ -413,14 +454,11 @@
                 itemDiv.appendChild(mediaElement);
             }
 
-            // ЛКМ по элементу превью
             itemDiv.addEventListener('click', function(e) {
                 e.stopPropagation();
                 
-                // Убираем обводку со всех остальных превью
                 document.querySelectorAll('.preview-item').forEach(el => el.classList.remove('active-outline'));
                 
-                // Включаем обводку для текущего
                 itemDiv.classList.add('active-outline');
                 isMediaSelected = true;
 
@@ -562,9 +600,9 @@
             }
         }
 
-        // Кнопка Trim делит видео на 2 независимых блока в превью
+        // Кнопка Trim
         trimBtn.addEventListener('click', () => {
-            if (!currentVideo || !currentClip || !isMediaSelected) return;
+            if (!currentVideo || !currentClip || !isMediaSelected || !isTimelineTrackSelected) return;
 
             const splitTime = currentVideo.currentTime;
             const start = currentClip.startTime || 0;
@@ -595,12 +633,14 @@
             currentVideo = null;
             currentClip = null;
             isMediaSelected = false;
+            isTimelineTrackSelected = false;
+            timelineTracks.forEach(t => t.classList.remove('active-outline'));
             framesContainer.innerHTML = '';
             timelinePlayhead.style.left = '0%';
             updateTrimButtonState();
         });
 
-        // Управление таймлайном только через ПКМ
+        // Управление таймлайном строго через ПКМ
         function handleTimelineInteraction(e) {
             if (!currentVideo) return;
             const rect = timelineWrapper.getBoundingClientRect();
