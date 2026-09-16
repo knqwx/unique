@@ -309,16 +309,6 @@
             border-radius: 1px;
         }
 
-        .timeline-slider {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
-            z-index: 3;
-            margin: 0;
-        }
-
         .bottom-line {
             width: 100%;
             height: 40px;
@@ -349,7 +339,6 @@
         <div class="bottom-line-timeline" id="timelineWrapper" oncontextmenu="return false;">
             <div class="timeline-frames" id="framesContainer"></div>
             <div class="timeline-playhead" id="timelinePlayhead"></div>
-            <input type="range" min="0" max="100" value="0" step="0.01" class="timeline-slider" id="timelineSlider" disabled>
         </div>
         <div class="bottom-line"></div>
         <div class="bottom-line"></div>
@@ -362,16 +351,14 @@
         const timelineWrapper = document.getElementById('timelineWrapper');
         const framesContainer = document.getElementById('framesContainer');
         const timelinePlayhead = document.getElementById('timelinePlayhead');
-        const timelineSlider = document.getElementById('timelineSlider');
         const trimBtn = document.getElementById('trimBtn');
 
         let hasItems = false;
         let gridWrapper = null;
         let currentVideo = null;
         let currentClip = null;
-        let currentItemElement = null;
-        let isDragging = false;
         let isMediaSelected = false;
+        let isMouseDownOnTimeline = false;
 
         function updateTrimButtonState() {
             if (currentClip && currentClip.type.startsWith('video/') && isMediaSelected) {
@@ -426,16 +413,16 @@
                 itemDiv.appendChild(mediaElement);
             }
 
-            // ЛКМ по превью выбирает клип и загружает его в плеер
-            itemDiv.addEventListener('click', function() {
-                // Снимаем выделение со всех остальных элементов
+            // ЛКМ по превью выбирает клип (белая рамка) и загружает его
+            itemDiv.addEventListener('click', function(e) {
+                e.stopPropagation();
                 document.querySelectorAll('.preview-item').forEach(el => el.classList.remove('active-outline'));
                 
                 itemDiv.classList.add('active-outline');
-                currentItemElement = itemDiv;
                 isMediaSelected = true;
 
                 loadClipToMain(clipData);
+                updateTrimButtonState();
             });
 
             if (gridWrapper) {
@@ -449,8 +436,6 @@
             currentClip = clipData;
             framesContainer.innerHTML = '';
             timelinePlayhead.style.left = '0%';
-            timelineSlider.disabled = true;
-            updateTrimButtonState();
 
             const mediaContainer = document.createElement('div');
             mediaContainer.className = 'media-container';
@@ -484,7 +469,6 @@
                 controls.appendChild(timeDisplay);
 
                 mainDisplay.appendChild(controls);
-                timelineSlider.disabled = false;
 
                 const formatTime = (seconds) => {
                     const mins = Math.floor(seconds / 60);
@@ -498,10 +482,6 @@
                     const end = clipData.endTime !== null ? clipData.endTime : fullDuration;
 
                     mainMedia.currentTime = start;
-                    timelineSlider.min = start;
-                    timelineSlider.max = end;
-                    timelineSlider.value = start;
-
                     timeDisplay.textContent = `${formatTime(start)} / ${formatTime(end)}`;
 
                     const frameCount = 50; 
@@ -556,8 +536,7 @@
                         playBtn.innerHTML = '▶';
                     }
 
-                    if (!isDragging && end > start) {
-                        timelineSlider.value = mainMedia.currentTime;
+                    if (end > start) {
                         const percent = ((mainMedia.currentTime - start) / (end - start)) * 100;
                         timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
                     }
@@ -580,7 +559,7 @@
             }
         }
 
-        // Кнопка Trim
+        // Логика кнопки Trim: разделяет клип на два независимых последовательных элемента в превью, оставляя их на месте
         trimBtn.addEventListener('click', () => {
             if (!currentVideo || !currentClip || !isMediaSelected) return;
 
@@ -606,13 +585,23 @@
                 endTime: end
             };
 
-            loadClipToMain(clipPart1);
+            // Создаем два новых отдельных блока в превью (как будто загрузили два разных видео)
+            createPreviewItem(clipPart1);
             createPreviewItem(clipPart2);
+
+            // Сбрасываем текущий выбор
+            mainDisplay.innerHTML = '<span class="main-placeholder">Select an item from the list</span>';
+            currentVideo = null;
+            currentClip = null;
+            isMediaSelected = false;
+            framesContainer.innerHTML = '';
+            timelinePlayhead.style.left = '0%';
+            updateTrimButtonState();
         });
 
-        // Функция перемещения бегунка по таймлайну
+        // Функция перемещения бегунка по таймлайну через ПКМ
         function handleTimelineInteraction(e) {
-            if (!currentVideo || timelineSlider.disabled) return;
+            if (!currentVideo) return;
             const rect = timelineWrapper.getBoundingClientRect();
             const clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             
@@ -622,18 +611,14 @@
 
             const newTime = start + (clickPosition * durationSpan);
             currentVideo.currentTime = newTime;
-            timelineSlider.value = newTime;
             timelinePlayhead.style.left = `${clickPosition * 100}%`;
         }
 
-        let isMouseDownOnTimeline = false;
-
-        // ПКМ двигает полоску таймлайна
+        // ПКМ двигает полоску таймлайна, ЛКМ на таймлайне ничего не делает
         timelineWrapper.addEventListener('mousedown', (e) => {
-            if (e.button === 2) {
-                if (!currentVideo || timelineSlider.disabled) return;
+            if (e.button === 2) { // Только правая кнопка мыши
+                if (!currentVideo) return;
                 isMouseDownOnTimeline = true;
-                isDragging = true;
                 handleTimelineInteraction(e);
             }
         });
@@ -647,22 +632,7 @@
         window.addEventListener('mouseup', (e) => {
             if (e.button === 2 || isMouseDownOnTimeline) {
                 isMouseDownOnTimeline = false;
-                isDragging = false;
             }
-        });
-
-        timelineSlider.addEventListener('input', () => {
-            if (currentVideo) {
-                isDragging = true;
-                currentVideo.currentTime = timelineSlider.value;
-                const start = currentClip.startTime || 0;
-                const end = currentClip.endTime !== null ? currentClip.endTime : currentVideo.duration;
-                const percent = ((timelineSlider.value - start) / (end - start)) * 100;
-                timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
-            }
-        });
-        timelineSlider.addEventListener('change', () => {
-            isDragging = false;
         });
     </script>
 </body>
