@@ -17,30 +17,10 @@
             justify-content: flex-start;
             align-items: flex-start;
             gap: 20px;
-            padding: 10px 20px 20px 20px; /* Уменьшен верхний отступ страницы, чтобы поднять сайдбар выше */
+            padding: 20px;
             box-sizing: border-box;
             overflow: hidden;
             position: relative;
-        }
-
-        /* Контейнер для трех темно-серых линий в самом низу (по 40px каждая) */
-        .bottom-lines {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 4px; /* Расстояние между линиями */
-            padding: 4px 0;
-            background-color: #1a1d20;
-            z-index: 1000;
-        }
-
-        .bottom-line {
-            width: 100%;
-            height: 40px; /* Толщина линий 40 пикселей */
-            background-color: #33383d; /* Темно-серый цвет */
         }
 
         .sidebar {
@@ -49,7 +29,7 @@
             gap: 15px;
             width: 240px;
             flex-shrink: 0;
-            height: calc(100vh - 20px); /* Скорректированная высота под новый отступ */
+            height: calc(100vh - 40px);
         }
 
         .box {
@@ -254,6 +234,30 @@
         #fileInput {
             display: none;
         }
+
+        /* Контейнер-бокс для трех темно-серых линий внизу */
+        .bottom-lines-box {
+            position: fixed;
+            bottom: 20px;
+            left: 340px; /* Сдвинуто правее сайдбара (240px ширина сайдбара + 20px отступ + 20px паддинг) */
+            right: 20px;
+            background-color: #2c3136;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            padding: 12px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 1000;
+        }
+
+        .bottom-line {
+            width: 100%;
+            height: 40px; /* Толщина каждой линии 40 пикселей */
+            background-color: #33383d; /* Темно-серый цвет */
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -270,8 +274,8 @@
         <span class="main-placeholder">Select an item from the list</span>
     </div>
 
-    <!-- Три толстые темно-серые линии в самом низу (по 40px) -->
-    <div class="bottom-lines">
+    <!-- Бокс с тремя толстыми темно-серыми линиями внизу -->
+    <div class="bottom-lines-box">
         <div class="bottom-line"></div>
         <div class="bottom-line"></div>
         <div class="bottom-line"></div>
