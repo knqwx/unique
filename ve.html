@@ -27,7 +27,7 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
-            width: 300px;
+            width: 240px;
             flex-shrink: 0;
             height: 100%;
         }
@@ -44,13 +44,13 @@
         }
 
         .upload-box {
-            height: 120px;
+            height: 100px;
             flex-shrink: 0;
             cursor: pointer;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 500;
             transition: background-color 0.2s;
         }
@@ -63,7 +63,7 @@
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            padding: 12px;
+            padding: 10px;
             overflow-y: auto;
             box-sizing: border-box;
             scrollbar-width: thin;
@@ -99,7 +99,7 @@
 
         .preview-item {
             width: 100%;
-            height: 80px;
+            height: 65px;
             background-color: #1a1d20;
             border-radius: 6px;
             overflow: hidden;
@@ -183,14 +183,15 @@
             width: 100%;
             height: 100%;
             display: flex;
-            opacity: 0.6;
+            opacity: 0.7;
             pointer-events: none;
         }
 
         .timeline-frame {
             height: 100%;
-            flex-grow: 1;
+            width: calc(100% / 10);
             object-fit: cover;
+            flex-shrink: 0;
         }
 
         .timeline-slider {
@@ -349,26 +350,38 @@
                             const duration = video.duration;
                             const frameCount = 10;
                             const interval = duration / frameCount;
+                            let extractedCount = 0;
+                            const frameData = new Array(frameCount);
 
                             for (let i = 0; i < frameCount; i++) {
-                                const tempVideo = document.createElement('video');
-                                tempVideo.src = fileURL;
-                                tempVideo.currentTime = i * interval;
-                                tempVideo.muted = true;
-                                tempVideo.preload = 'auto';
+                                (function(index) {
+                                    const tempVideo = document.createElement('video');
+                                    tempVideo.src = fileURL;
+                                    tempVideo.currentTime = index * interval;
+                                    tempVideo.muted = true;
+                                    tempVideo.preload = 'auto';
 
-                                tempVideo.addEventListener('seeked', () => {
-                                    const canvas = document.createElement('canvas');
-                                    canvas.width = 100;
-                                    canvas.height = 60;
-                                    const ctx = canvas.getContext('2d');
-                                    ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+                                    tempVideo.addEventListener('seeked', () => {
+                                        const canvas = document.createElement('canvas');
+                                        canvas.width = 120;
+                                        canvas.height = 70;
+                                        const ctx = canvas.getContext('2d');
+                                        ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
 
-                                    const frameImg = document.createElement('img');
-                                    frameImg.src = canvas.toDataURL();
-                                    frameImg.className = 'timeline-frame';
-                                    framesContainer.appendChild(frameImg);
-                                }, { once: true });
+                                        frameData[index] = canvas.toDataURL();
+                                        extractedCount++;
+
+                                        if (extractedCount === frameCount) {
+                                            framesContainer.innerHTML = '';
+                                            for (let j = 0; j < frameCount; j++) {
+                                                const frameImg = document.createElement('img');
+                                                frameImg.src = frameData[j];
+                                                frameImg.className = 'timeline-frame';
+                                                framesContainer.appendChild(frameImg);
+                                            }
+                                        }
+                                    }, { once: true });
+                                })(i);
                             }
                         });
 
