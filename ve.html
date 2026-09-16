@@ -27,7 +27,7 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
-            width: 380px;
+            width: 300px;
             flex-shrink: 0;
             height: 100%;
         }
@@ -44,13 +44,13 @@
         }
 
         .upload-box {
-            height: 180px;
+            height: 120px;
             flex-shrink: 0;
             cursor: pointer;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 500;
             transition: background-color 0.2s;
         }
@@ -87,7 +87,7 @@
         .preview-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+            gap: 8px;
             width: 100%;
         }
 
@@ -99,7 +99,7 @@
 
         .preview-item {
             width: 100%;
-            height: 100px;
+            height: 80px;
             background-color: #1a1d20;
             border-radius: 6px;
             overflow: hidden;
@@ -127,6 +127,7 @@
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             overflow: hidden;
@@ -138,10 +139,91 @@
             font-size: 16px;
         }
 
+        .media-container {
+            flex-grow: 1;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
         .main-media {
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
+        }
+
+        .video-controls {
+            width: 100%;
+            background-color: #212529;
+            padding: 15px 20px;
+            box-sizing: border-box;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .timeline-wrapper {
+            position: relative;
+            width: 100%;
+            height: 40px;
+            background-color: #1a1d20;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+        }
+
+        .timeline-frames {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .timeline-frame {
+            height: 100%;
+            flex-grow: 1;
+            object-fit: cover;
+        }
+
+        .timeline-slider {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 2;
+            margin: 0;
+        }
+
+        .control-buttons {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: #ffffff;
+            font-size: 14px;
+        }
+
+        .play-btn {
+            background-color: #3b4249;
+            color: #ffffff;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 500;
+        }
+
+        .play-btn:hover {
+            background-color: #485059;
         }
 
         #fileInput {
@@ -202,19 +284,124 @@
 
                 itemDiv.addEventListener('click', function() {
                     mainDisplay.innerHTML = '';
-                    let displayMedia;
+
+                    const mediaContainer = document.createElement('div');
+                    mediaContainer.className = 'media-container';
+                    mainDisplay.appendChild(mediaContainer);
+
                     if (file.type.startsWith('image/')) {
-                        displayMedia = document.createElement('img');
-                        displayMedia.src = fileURL;
-                        displayMedia.className = 'main-media';
+                        const img = document.createElement('img');
+                        img.src = fileURL;
+                        img.className = 'main-media';
+                        mediaContainer.appendChild(img);
                     } else if (file.type.startsWith('video/')) {
-                        displayMedia = document.createElement('video');
-                        displayMedia.src = fileURL;
-                        displayMedia.className = 'main-media';
-                        displayMedia.controls = true;
-                        displayMedia.autoplay = true;
+                        const video = document.createElement('video');
+                        video.src = fileURL;
+                        video.className = 'main-media';
+                        mediaContainer.appendChild(video);
+
+                        const controls = document.createElement('div');
+                        controls.className = 'video-controls';
+                        controls.style.display = 'flex';
+
+                        const timelineWrapper = document.createElement('div');
+                        timelineWrapper.className = 'timeline-wrapper';
+
+                        const framesContainer = document.createElement('div');
+                        framesContainer.className = 'timeline-frames';
+                        timelineWrapper.appendChild(framesContainer);
+
+                        const slider = document.createElement('input');
+                        slider.type = 'range';
+                        slider.min = 0;
+                        slider.max = 100;
+                        slider.value = 0;
+                        slider.step = 0.1;
+                        slider.className = 'timeline-slider';
+                        timelineWrapper.appendChild(slider);
+
+                        const bottomRow = document.createElement('div');
+                        bottomRow.className = 'control-buttons';
+
+                        const playBtn = document.createElement('button');
+                        playBtn.className = 'play-btn';
+                        playBtn.textContent = 'Play';
+                        bottomRow.appendChild(playBtn);
+
+                        const timeDisplay = document.createElement('span');
+                        timeDisplay.textContent = '0:00 / 0:00';
+                        bottomRow.appendChild(timeDisplay);
+
+                        controls.appendChild(timelineWrapper);
+                        controls.appendChild(bottomRow);
+                        mainDisplay.appendChild(controls);
+
+                        const formatTime = (seconds) => {
+                            const mins = Math.floor(seconds / 60);
+                            const secs = Math.floor(seconds % 60);
+                            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+                        };
+
+                        video.addEventListener('loadedmetadata', () => {
+                            slider.max = video.duration;
+                            timeDisplay.textContent = `0:00 / ${formatTime(video.duration)}`;
+
+                            const duration = video.duration;
+                            const frameCount = 10;
+                            const interval = duration / frameCount;
+
+                            for (let i = 0; i < frameCount; i++) {
+                                const tempVideo = document.createElement('video');
+                                tempVideo.src = fileURL;
+                                tempVideo.currentTime = i * interval;
+                                tempVideo.muted = true;
+                                tempVideo.preload = 'auto';
+
+                                tempVideo.addEventListener('seeked', () => {
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = 100;
+                                    canvas.height = 60;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+
+                                    const frameImg = document.createElement('img');
+                                    frameImg.src = canvas.toDataURL();
+                                    frameImg.className = 'timeline-frame';
+                                    framesContainer.appendChild(frameImg);
+                                }, { once: true });
+                            }
+                        });
+
+                        video.addEventListener('timeupdate', () => {
+                            if (!isDragging) {
+                                slider.value = video.currentTime;
+                            }
+                            timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+                        });
+
+                        let isDragging = false;
+                        slider.addEventListener('input', () => {
+                            isDragging = true;
+                            video.currentTime = slider.value;
+                        });
+                        slider.addEventListener('change', () => {
+                            isDragging = false;
+                        });
+
+                        playBtn.addEventListener('click', () => {
+                            if (video.paused) {
+                                video.play();
+                                playBtn.textContent = 'Pause';
+                            } else {
+                                video.pause();
+                                playBtn.textContent = 'Play';
+                            }
+                        });
+
+                        video.addEventListener('ended', () => {
+                            playBtn.textContent = 'Play';
+                        });
                     }
-                    mainDisplay.appendChild(displayMedia);
                 });
 
                 gridWrapper.appendChild(itemDiv);
