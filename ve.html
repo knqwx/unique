@@ -132,9 +132,8 @@
             object-fit: cover;
         }
 
-        /* Центральная область занимает пространство между левым и правым сайдбарами */
         .main-display {
-            width: calc(100% - 510px); /* 240 (лев) + 240 (прав) + отступы/гэпы */
+            width: calc(100% - 510px);
             flex-grow: 1;
             height: calc(100vh - 215px);
             background-color: #2c3136;
@@ -169,57 +168,47 @@
             object-fit: contain;
         }
 
-        /* Панель управления снизу видео (только тайм-код, кнопка воспроизведения перенесена в центр) */
+        /* Панель управления снизу видео (кнопка Play и тайм-код) */
         .video-controls {
             width: 100%;
             background-color: #212529;
-            padding: 12px 20px;
+            padding: 10px 20px;
             box-sizing: border-box;
             display: none;
             align-items: center;
-            justify-content: flex-end;
+            gap: 15px;
             color: #ffffff;
             font-size: 14px;
         }
 
-        /* Кнопка Play/Pause по центру видео */
-        .center-play-btn {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 60px;
-            height: 60px;
-            background-color: rgba(33, 37, 41, 0.8);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
+        .play-btn {
+            background-color: #3b4249;
             color: #ffffff;
-            font-size: 20px;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
             cursor: pointer;
-            display: none;
+            display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 10;
-            transition: background-color 0.2s, transform 0.2s, border-color 0.2s;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            font-size: 14px;
+            transition: background-color 0.2s;
         }
 
-        .center-play-btn:hover {
-            background-color: rgba(44, 49, 54, 0.95);
-            border-color: rgba(255, 255, 255, 0.5);
-            transform: translate(-50%, -50%) scale(1.05);
+        .play-btn:hover {
+            background-color: #485059;
         }
 
         #fileInput {
             display: none;
         }
 
-        /* Нижний блок с линиями подстроили под новые отступы справа */
         .bottom-lines-box {
             position: fixed;
             bottom: 20px;
-            left: 255px; /* Учитывает левый сайдбар + отступ */
-            right: 275px; /* Учитывает правый сайдбар + отступ */
+            left: 255px;
+            right: 275px;
             background-color: #2c3136;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
@@ -240,6 +229,7 @@
             overflow: hidden;
             display: flex;
             align-items: center;
+            user-select: none;
         }
 
         .timeline-frames {
@@ -295,11 +285,11 @@
         <span class="main-placeholder">Select an item from the list</span>
     </div>
 
-    <!-- Правый сайдбар -->
     <div class="right-sidebar"></div>
 
     <div class="bottom-lines-box">
-        <div class="bottom-line-timeline" id="timelineWrapper">
+        <!-- contextmenu заблокирован через preventDefault, чтобы ПКМ не вызывал стандартное меню, а перематывал -->
+        <div class="bottom-line-timeline" id="timelineWrapper" oncontextmenu="return false;">
             <div class="timeline-frames" id="framesContainer"></div>
             <input type="range" min="0" max="100" value="0" step="0.01" class="timeline-slider" id="timelineSlider" disabled>
         </div>
@@ -372,16 +362,14 @@
                         mediaContainer.appendChild(video);
                         currentVideo = video;
 
-                        // Кнопка Play/Pause по центру с символом ▶
-                        const centerPlayBtn = document.createElement('button');
-                        centerPlayBtn.className = 'center-play-btn';
-                        centerPlayBtn.innerHTML = '▶';
-                        centerPlayBtn.style.display = 'flex';
-                        mainDisplay.appendChild(centerPlayBtn);
-
                         const controls = document.createElement('div');
                         controls.className = 'video-controls';
                         controls.style.display = 'flex';
+
+                        const playBtn = document.createElement('button');
+                        playBtn.className = 'play-btn';
+                        playBtn.innerHTML = '▶';
+                        controls.appendChild(playBtn);
 
                         const timeDisplay = document.createElement('span');
                         timeDisplay.textContent = '0:00 / 0:00';
@@ -453,18 +441,17 @@
                         const togglePlay = () => {
                             if (video.paused) {
                                 video.play();
-                                centerPlayBtn.innerHTML = '❚❚';
+                                playBtn.innerHTML = '❚❚';
                             } else {
                                 video.pause();
-                                centerPlayBtn.innerHTML = '▶';
+                                playBtn.innerHTML = '▶';
                             }
                         };
 
-                        centerPlayBtn.addEventListener('click', togglePlay);
-                        video.addEventListener('click', togglePlay);
+                        playBtn.addEventListener('click', togglePlay);
 
                         video.addEventListener('ended', () => {
-                            centerPlayBtn.innerHTML = '▶';
+                            playBtn.innerHTML = '▶';
                         });
                     }
                 });
@@ -473,6 +460,38 @@
             });
             
             fileInput.value = '';
+        });
+
+        // Функция быстрой перемотки кликом/зажатием (работает как для ЛКМ, так и для ПКМ)
+        function handleTimelineInteraction(e) {
+            if (!currentVideo || timelineSlider.disabled) return;
+            const rect = timelineWrapper.getBoundingClientRect();
+            const clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            const newTime = clickPosition * currentVideo.duration;
+            currentVideo.currentTime = newTime;
+            timelineSlider.value = newTime;
+        }
+
+        let isMouseDownOnTimeline = false;
+
+        timelineWrapper.addEventListener('mousedown', (e) => {
+            if (!currentVideo || timelineSlider.disabled) return;
+            isMouseDownOnTimeline = true;
+            isDragging = true;
+            handleTimelineInteraction(e);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isMouseDownOnTimeline && currentVideo) {
+                handleTimelineInteraction(e);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isMouseDownOnTimeline) {
+                isMouseDownOnTimeline = false;
+                isDragging = false;
+            }
         });
 
         timelineSlider.addEventListener('input', () => {
