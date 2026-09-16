@@ -148,15 +148,19 @@
             font-size: 14px;
             font-weight: 500;
             font-family: 'Rubik', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
             transition: background-color 0.2s;
         }
 
-        .trim-btn:hover {
+        .trim-btn:hover:not(:disabled) {
             background-color: #485059;
         }
 
         .trim-btn:disabled {
-            opacity: 0.5;
+            opacity: 0.4;
             cursor: not-allowed;
         }
 
@@ -264,7 +268,7 @@
             height: 40px;
             background-color: #33383d;
             border-radius: 4px;
-            overflow: visible; /* Разрешаем линии выходить за пределы таймлайна по вертикали */
+            overflow: visible;
             display: flex;
             align-items: center;
             user-select: none;
@@ -300,7 +304,6 @@
             display: block;
         }
 
-        /* Увеличенный бегунок (плейхед), который выступает выше и ниже таймлайна */
         .timeline-playhead {
             position: absolute;
             top: -6px;
@@ -347,7 +350,7 @@
     </div>
 
     <div class="right-sidebar">
-        <button class="trim-btn" id="trimBtn" disabled>Trim Clip</button>
+        <button class="trim-btn" id="trimBtn" disabled>✂ Trim</button>
     </div>
 
     <div class="bottom-lines-box">
@@ -373,8 +376,18 @@
         let hasItems = false;
         let gridWrapper = null;
         let currentVideo = null;
-        let currentItemData = null;
+        let currentClip = null;
         let isDragging = false;
+        let isMediaSelected = false; // Состояние выделения клипа в плеере
+
+        function updateTrimButtonState() {
+            // Кнопка Trim доступна только если это видео И клип выбран (имеет белую обводку)
+            if (currentClip && currentClip.type.startsWith('video/') && isMediaSelected) {
+                trimBtn.disabled = false;
+            } else {
+                trimBtn.disabled = true;
+            }
+        }
 
         fileInput.addEventListener('change', function(event) {
             const files = event.target.files;
@@ -390,54 +403,56 @@
 
             Array.from(files).forEach(file => {
                 const fileURL = URL.createObjectURL(file);
-                addMediaItem(file, fileURL);
+                const clipData = {
+                    file: file,
+                    url: fileURL,
+                    type: file.type,
+                    startTime: 0,
+                    endTime: null
+                };
+                createPreviewItem(clipData);
             });
             
             fileInput.value = '';
         });
 
-        function addMediaItem(file, fileURL, startTime = 0, endTime = null) {
-            const itemData = {
-                file: file,
-                url: fileURL,
-                type: file.type,
-                startTime: startTime,
-                endTime: endTime
-            };
-
+        function createPreviewItem(clipData) {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'preview-item';
 
             let mediaElement;
-            if (file.type.startsWith('image/')) {
+            if (clipData.type.startsWith('image/')) {
                 mediaElement = document.createElement('img');
-                mediaElement.src = fileURL;
+                mediaElement.src = clipData.url;
                 mediaElement.className = 'preview-media';
                 itemDiv.appendChild(mediaElement);
-            } else if (file.type.startsWith('video/')) {
+            } else if (clipData.type.startsWith('video/')) {
                 mediaElement = document.createElement('video');
-                mediaElement.src = fileURL;
+                mediaElement.src = clipData.url;
                 mediaElement.className = 'preview-media';
-                mediaElement.currentTime = startTime;
+                mediaElement.currentTime = clipData.startTime;
                 itemDiv.appendChild(mediaElement);
             }
 
             itemDiv.addEventListener('click', function() {
-                loadMediaToMain(itemData);
+                loadClipToMain(clipData);
             });
 
-            gridWrapper.appendChild(itemDiv);
+            if (gridWrapper) {
+                gridWrapper.appendChild(itemDiv);
+            }
         }
 
-        function loadMediaToMain(itemData) {
+        function loadClipToMain(clipData) {
             mainDisplay.innerHTML = '';
             currentVideo = null;
-            currentItemData = itemData;
+            currentClip = clipData;
             framesContainer.innerHTML = '';
             timelinePlayhead.style.left = '0%';
             timelineSlider.disabled = true;
             timelineWrapper.classList.remove('active-outline');
-            trimBtn.disabled = true;
+            isMediaSelected = false;
+            updateTrimButtonState();
 
             const mediaContainer = document.createElement('div');
             mediaContainer.className = 'media-container';
@@ -445,14 +460,14 @@
 
             let mainMedia;
 
-            if (itemData.type.startsWith('image/')) {
+            if (clipData.type.startsWith('image/')) {
                 mainMedia = document.createElement('img');
-                mainMedia.src = itemData.url;
+                mainMedia.src = clipData.url;
                 mainMedia.className = 'main-media';
                 mediaContainer.appendChild(mainMedia);
-            } else if (itemData.type.startsWith('video/')) {
+            } else if (clipData.type.startsWith('video/')) {
                 mainMedia = document.createElement('video');
-                mainMedia.src = itemData.url;
+                mainMedia.src = clipData.url;
                 mainMedia.className = 'main-media';
                 mediaContainer.appendChild(mainMedia);
                 currentVideo = mainMedia;
@@ -472,7 +487,6 @@
 
                 mainDisplay.appendChild(controls);
                 timelineSlider.disabled = false;
-                trimBtn.disabled = false;
 
                 const formatTime = (seconds) => {
                     const mins = Math.floor(seconds / 60);
@@ -482,8 +496,8 @@
 
                 mainMedia.addEventListener('loadedmetadata', () => {
                     const fullDuration = mainMedia.duration;
-                    const start = itemData.startTime || 0;
-                    const end = itemData.endTime !== null ? itemData.endTime : fullDuration;
+                    const start = clipData.startTime || 0;
+                    const end = clipData.endTime !== null ? clipData.endTime : fullDuration;
 
                     mainMedia.currentTime = start;
                     timelineSlider.min = start;
@@ -501,7 +515,7 @@
                     const ctx = canvas.getContext('2d');
 
                     const tempVideo = document.createElement('video');
-                    tempVideo.src = itemData.url;
+                    tempVideo.src = clipData.url;
                     tempVideo.muted = true;
                     tempVideo.playsInline = true;
 
@@ -535,8 +549,8 @@
                 });
 
                 mainMedia.addEventListener('timeupdate', () => {
-                    const start = itemData.startTime || 0;
-                    const end = itemData.endTime !== null ? itemData.endTime : mainMedia.duration;
+                    const start = clipData.startTime || 0;
+                    const end = clipData.endTime !== null ? clipData.endTime : mainMedia.duration;
 
                     if (mainMedia.currentTime >= end) {
                         mainMedia.pause();
@@ -570,39 +584,45 @@
             if (mainMedia) {
                 mainMedia.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    mainMedia.classList.toggle('active-outline');
+                    isMediaSelected = !isMediaSelected;
+                    mainMedia.classList.toggle('active-outline', isMediaSelected);
+                    updateTrimButtonState();
                 });
             }
         }
 
-        // Функция обрезки (деления клипа на 2 части по текущей позиции плейхеда)
+        // Логика кнопки Trim: разделение текущего клипа на таймлайне на два самостоятельных клипа (последовательно)
         trimBtn.addEventListener('click', () => {
-            if (!currentVideo || !currentItemData) return;
-            const splitTime = currentVideo.currentTime;
-            const start = currentItemData.startTime || 0;
-            const end = currentItemData.endTime !== null ? currentItemData.endTime : currentVideo.duration;
+            if (!currentVideo || !currentClip || !isMediaSelected) return;
 
-            // Разделение имеет смысл, если точка разреза внутри клипа с запасом
+            const splitTime = currentVideo.currentTime;
+            const start = currentClip.startTime || 0;
+            const end = currentClip.endTime !== null ? currentClip.endTime : currentVideo.duration;
+
             if (splitTime <= start + 0.1 || splitTime >= end - 0.1) return;
 
-            // Создаем два новых диапазона
-            const part1Start = start;
-            const part1End = splitTime;
-            const part2Start = splitTime;
-            const part2End = end;
+            // Создаем два новых объекта клипа, представляющих две части единого таймлайна
+            const clipPart1 = {
+                file: currentClip.file,
+                url: currentClip.url,
+                type: currentClip.type,
+                startTime: start,
+                endTime: splitTime
+            };
 
-            // Добавляем две новые части в список превью
-            addMediaItem(currentItemData.file, currentItemData.url, part1Start, part1End);
-            addMediaItem(currentItemData.file, currentItemData.url, part2Start, part2End);
+            const clipPart2 = {
+                file: currentClip.file,
+                url: currentClip.url,
+                type: currentClip.type,
+                startTime: splitTime,
+                endTime: end
+            };
 
-            // Переключаемся на первую получившуюся часть
-            loadMediaToMain({
-                file: currentItemData.file,
-                url: currentItemData.url,
-                type: currentItemData.type,
-                startTime: part1Start,
-                endTime: part1End
-            });
+            // Переключаем текущий отображаемый клип на первую часть
+            loadClipToMain(clipPart1);
+
+            // Также автоматически создаем превью для второй части (чтобы они шли друг за другом)
+            createPreviewItem(clipPart2);
         });
 
         function handleTimelineInteraction(e) {
@@ -610,8 +630,8 @@
             const rect = timelineWrapper.getBoundingClientRect();
             const clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             
-            const start = currentItemData.startTime || 0;
-            const end = currentItemData.endTime !== null ? currentItemData.endTime : currentVideo.duration;
+            const start = currentClip.startTime || 0;
+            const end = currentClip.endTime !== null ? currentClip.endTime : currentVideo.duration;
             const durationSpan = end - start;
 
             const newTime = start + (clickPosition * durationSpan);
@@ -648,8 +668,8 @@
             if (currentVideo) {
                 isDragging = true;
                 currentVideo.currentTime = timelineSlider.value;
-                const start = currentItemData.startTime || 0;
-                const end = currentItemData.endTime !== null ? currentItemData.endTime : currentVideo.duration;
+                const start = currentClip.startTime || 0;
+                const end = currentClip.endTime !== null ? currentClip.endTime : currentVideo.duration;
                 const percent = ((timelineSlider.value - start) / (end - start)) * 100;
                 timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
             }
