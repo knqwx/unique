@@ -169,12 +169,11 @@
             max-height: 100%;
             object-fit: contain;
             cursor: pointer;
-            border: 2px solid transparent; /* Изначально прозрачная рамка */
+            border: 2px solid transparent;
             border-radius: 4px;
             transition: border-color 0.15s ease;
         }
 
-        /* Класс для белой обводки при клике */
         .main-media.active-outline {
             border-color: #ffffff !important;
         }
@@ -216,7 +215,6 @@
             display: none;
         }
 
-        /* Исправленный блок линий снизу: четко отступ слева на ширину левого сайдбара (240px + 20px отступ body + 15px гэп = 275px) */
         .bottom-lines-box {
             position: fixed;
             bottom: 20px;
@@ -233,6 +231,7 @@
             z-index: 1000;
         }
 
+        /* Таймлайн с белой обводкой при активном состоянии */
         .bottom-line-timeline {
             position: relative;
             width: 100%;
@@ -243,6 +242,13 @@
             display: flex;
             align-items: center;
             user-select: none;
+            border: 2px solid transparent;
+            box-sizing: border-box;
+            transition: border-color 0.15s ease;
+        }
+
+        .bottom-line-timeline.active-outline {
+            border-color: #ffffff !important;
         }
 
         .timeline-frames {
@@ -357,6 +363,7 @@
                     currentVideo = null;
                     framesContainer.innerHTML = '';
                     timelineSlider.disabled = true;
+                    timelineWrapper.classList.remove('active-outline');
 
                     const mediaContainer = document.createElement('div');
                     mediaContainer.className = 'media-container';
@@ -467,7 +474,6 @@
                         });
                     }
 
-                    // Добавление белой обводки при клике ЛКМ на медиафайл в главном окне
                     if (mainMedia) {
                         mainMedia.addEventListener('click', (e) => {
                             e.stopPropagation();
@@ -497,6 +503,10 @@
             if (!currentVideo || timelineSlider.disabled) return;
             isMouseDownOnTimeline = true;
             isDragging = true;
+            
+            // Добавление белой обводки таймлайну при клике ЛКМ
+            timelineWrapper.classList.toggle('active-outline');
+
             handleTimelineInteraction(e);
         });
 
