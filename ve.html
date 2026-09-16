@@ -6,7 +6,7 @@
     <title>ve</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         body {
             background-color: #1a1d20;
@@ -21,6 +21,7 @@
             box-sizing: border-box;
             overflow: hidden;
             position: relative;
+            font-family: 'Rubik', sans-serif;
         }
 
         .sidebar {
@@ -39,7 +40,7 @@
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
             border: none;
             color: #ffffff;
-            font-family: inherit;
+            font-family: 'Rubik', sans-serif;
             box-sizing: border-box;
         }
 
@@ -176,7 +177,7 @@
             padding: 6px 14px;
             border-radius: 4px;
             cursor: pointer;
-            font-family: inherit;
+            font-family: 'Rubik', sans-serif;
             font-weight: 500;
         }
 
@@ -205,7 +206,7 @@
             z-index: 1000;
         }
 
-        /* Первая линия теперь содержит таймлайн с кадрами */
+        /* Верхняя линия (всегда видимая, внутри неё таймлайн) */
         .bottom-line-timeline {
             position: relative;
             width: 100%;
@@ -271,11 +272,11 @@
         <span class="main-placeholder">Select an item from the list</span>
     </div>
 
-    <!-- Бокс с линиями внизу, первая линия совмещена с таймлайном -->
+    <!-- Бокс с линиями внизу. Верхняя линия теперь всегда видна -->
     <div class="bottom-lines-box">
-        <div class="bottom-line-timeline" id="timelineWrapper" style="display: none;">
+        <div class="bottom-line-timeline" id="timelineWrapper">
             <div class="timeline-frames" id="framesContainer"></div>
-            <input type="range" min="0" max="100" value="0" step="0.01" class="timeline-slider" id="timelineSlider">
+            <input type="range" min="0" max="100" value="0" step="0.01" class="timeline-slider" id="timelineSlider" disabled>
         </div>
         <div class="bottom-line"></div>
         <div class="bottom-line"></div>
@@ -327,7 +328,8 @@
                 itemDiv.addEventListener('click', function() {
                     mainDisplay.innerHTML = '';
                     currentVideo = null;
-                    timelineWrapper.style.display = 'none';
+                    framesContainer.innerHTML = '';
+                    timelineSlider.disabled = true;
 
                     const mediaContainer = document.createElement('div');
                     mediaContainer.className = 'media-container';
@@ -359,7 +361,7 @@
                         controls.appendChild(timeDisplay);
 
                         mainDisplay.appendChild(controls);
-                        timelineWrapper.style.display = 'flex';
+                        timelineSlider.disabled = false;
 
                         const formatTime = (seconds) => {
                             const mins = Math.floor(seconds / 60);
