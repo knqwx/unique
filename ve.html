@@ -272,13 +272,7 @@
             display: flex;
             align-items: center;
             user-select: none;
-            border: 2px solid transparent;
             box-sizing: border-box;
-            transition: border-color 0.15s ease;
-        }
-
-        .bottom-line-timeline.active-outline {
-            border-color: #ffffff !important;
         }
 
         .timeline-frames {
@@ -378,10 +372,9 @@
         let currentVideo = null;
         let currentClip = null;
         let isDragging = false;
-        let isMediaSelected = false; // Состояние выделения клипа в плеере
+        let isMediaSelected = false;
 
         function updateTrimButtonState() {
-            // Кнопка Trim доступна только если это видео И клип выбран (имеет белую обводку)
             if (currentClip && currentClip.type.startsWith('video/') && isMediaSelected) {
                 trimBtn.disabled = false;
             } else {
@@ -450,7 +443,6 @@
             framesContainer.innerHTML = '';
             timelinePlayhead.style.left = '0%';
             timelineSlider.disabled = true;
-            timelineWrapper.classList.remove('active-outline');
             isMediaSelected = false;
             updateTrimButtonState();
 
@@ -581,6 +573,7 @@
                 });
             }
 
+            // ЛКМ выбирает клип и включает/выключает белую обводку, но НЕ двигает бегунок
             if (mainMedia) {
                 mainMedia.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -591,7 +584,7 @@
             }
         }
 
-        // Логика кнопки Trim: разделение текущего клипа на таймлайне на два самостоятельных клипа (последовательно)
+        // Кнопка Trim
         trimBtn.addEventListener('click', () => {
             if (!currentVideo || !currentClip || !isMediaSelected) return;
 
@@ -601,7 +594,6 @@
 
             if (splitTime <= start + 0.1 || splitTime >= end - 0.1) return;
 
-            // Создаем два новых объекта клипа, представляющих две части единого таймлайна
             const clipPart1 = {
                 file: currentClip.file,
                 url: currentClip.url,
@@ -618,13 +610,11 @@
                 endTime: end
             };
 
-            // Переключаем текущий отображаемый клип на первую часть
             loadClipToMain(clipPart1);
-
-            // Также автоматически создаем превью для второй части (чтобы они шли друг за другом)
             createPreviewItem(clipPart2);
         });
 
+        // Функция перемещения бегунка по таймлайну
         function handleTimelineInteraction(e) {
             if (!currentVideo || timelineSlider.disabled) return;
             const rect = timelineWrapper.getBoundingClientRect();
@@ -642,13 +632,14 @@
 
         let isMouseDownOnTimeline = false;
 
+        // ПКМ (mousedown с кнопкой 2) двигает полоску и включает перетаскивание, контекстное меню заблокировано
         timelineWrapper.addEventListener('mousedown', (e) => {
-            if (!currentVideo || timelineSlider.disabled) return;
-            isMouseDownOnTimeline = true;
-            isDragging = true;
-            
-            timelineWrapper.classList.toggle('active-outline');
-            handleTimelineInteraction(e);
+            if (e.button === 2) { // Правая кнопка мыши
+                if (!currentVideo || timelineSlider.disabled) return;
+                isMouseDownOnTimeline = true;
+                isDragging = true;
+                handleTimelineInteraction(e);
+            }
         });
 
         window.addEventListener('mousemove', (e) => {
@@ -657,8 +648,8 @@
             }
         });
 
-        window.addEventListener('mouseup', () => {
-            if (isMouseDownOnTimeline) {
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 2 || isMouseDownOnTimeline) {
                 isMouseDownOnTimeline = false;
                 isDragging = false;
             }
