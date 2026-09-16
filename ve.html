@@ -231,7 +231,6 @@
             z-index: 1000;
         }
 
-        /* Таймлайн с белой обводкой при активном состоянии */
         .bottom-line-timeline {
             position: relative;
             width: 100%;
@@ -272,6 +271,19 @@
             display: block;
         }
 
+        /* Индикатор текущего положения (белая вертикальная линия) */
+        .timeline-playhead {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #ffffff;
+            left: 0%;
+            z-index: 2;
+            pointer-events: none;
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+        }
+
         .timeline-slider {
             position: absolute;
             width: 100%;
@@ -309,6 +321,7 @@
     <div class="bottom-lines-box">
         <div class="bottom-line-timeline" id="timelineWrapper" oncontextmenu="return false;">
             <div class="timeline-frames" id="framesContainer"></div>
+            <div class="timeline-playhead" id="timelinePlayhead"></div>
             <input type="range" min="0" max="100" value="0" step="0.01" class="timeline-slider" id="timelineSlider" disabled>
         </div>
         <div class="bottom-line"></div>
@@ -321,6 +334,7 @@
         const mainDisplay = document.getElementById('mainDisplay');
         const timelineWrapper = document.getElementById('timelineWrapper');
         const framesContainer = document.getElementById('framesContainer');
+        const timelinePlayhead = document.getElementById('timelinePlayhead');
         const timelineSlider = document.getElementById('timelineSlider');
 
         let hasItems = false;
@@ -362,6 +376,7 @@
                     mainDisplay.innerHTML = '';
                     currentVideo = null;
                     framesContainer.innerHTML = '';
+                    timelinePlayhead.style.left = '0%';
                     timelineSlider.disabled = true;
                     timelineWrapper.classList.remove('active-outline');
 
@@ -453,8 +468,10 @@
                         });
 
                         mainMedia.addEventListener('timeupdate', () => {
-                            if (!isDragging) {
+                            if (!isDragging && mainMedia.duration) {
                                 timelineSlider.value = mainMedia.currentTime;
+                                const percent = (mainMedia.currentTime / mainMedia.duration) * 100;
+                                timelinePlayhead.style.left = `${percent}%`;
                             }
                             timeDisplay.textContent = `${formatTime(mainMedia.currentTime)} / ${formatTime(mainMedia.duration)}`;
                         });
@@ -495,6 +512,7 @@
             const newTime = clickPosition * currentVideo.duration;
             currentVideo.currentTime = newTime;
             timelineSlider.value = newTime;
+            timelinePlayhead.style.left = `${clickPosition * 100}%`;
         }
 
         let isMouseDownOnTimeline = false;
@@ -504,7 +522,6 @@
             isMouseDownOnTimeline = true;
             isDragging = true;
             
-            // Добавление белой обводки таймлайну при клике ЛКМ
             timelineWrapper.classList.toggle('active-outline');
 
             handleTimelineInteraction(e);
@@ -524,9 +541,11 @@
         });
 
         timelineSlider.addEventListener('input', () => {
-            if (currentVideo) {
+            if (currentVideo && currentVideo.duration) {
                 isDragging = true;
                 currentVideo.currentTime = timelineSlider.value;
+                const percent = (timelineSlider.value / currentVideo.duration) * 100;
+                timelinePlayhead.style.left = `${percent}%`;
             }
         });
         timelineSlider.addEventListener('change', () => {
