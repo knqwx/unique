@@ -413,11 +413,14 @@
                 itemDiv.appendChild(mediaElement);
             }
 
-            // ЛКМ по превью выбирает клип (белая рамка) и загружает его
+            // ЛКМ по элементу превью
             itemDiv.addEventListener('click', function(e) {
                 e.stopPropagation();
+                
+                // Убираем обводку со всех остальных превью
                 document.querySelectorAll('.preview-item').forEach(el => el.classList.remove('active-outline'));
                 
+                // Включаем обводку для текущего
                 itemDiv.classList.add('active-outline');
                 isMediaSelected = true;
 
@@ -559,7 +562,7 @@
             }
         }
 
-        // Логика кнопки Trim: разделяет клип на два независимых последовательных элемента в превью, оставляя их на месте
+        // Кнопка Trim делит видео на 2 независимых блока в превью
         trimBtn.addEventListener('click', () => {
             if (!currentVideo || !currentClip || !isMediaSelected) return;
 
@@ -585,11 +588,9 @@
                 endTime: end
             };
 
-            // Создаем два новых отдельных блока в превью (как будто загрузили два разных видео)
             createPreviewItem(clipPart1);
             createPreviewItem(clipPart2);
 
-            // Сбрасываем текущий выбор
             mainDisplay.innerHTML = '<span class="main-placeholder">Select an item from the list</span>';
             currentVideo = null;
             currentClip = null;
@@ -599,7 +600,7 @@
             updateTrimButtonState();
         });
 
-        // Функция перемещения бегунка по таймлайну через ПКМ
+        // Управление таймлайном только через ПКМ
         function handleTimelineInteraction(e) {
             if (!currentVideo) return;
             const rect = timelineWrapper.getBoundingClientRect();
@@ -614,9 +615,8 @@
             timelinePlayhead.style.left = `${clickPosition * 100}%`;
         }
 
-        // ПКМ двигает полоску таймлайна, ЛКМ на таймлайне ничего не делает
         timelineWrapper.addEventListener('mousedown', (e) => {
-            if (e.button === 2) { // Только правая кнопка мыши
+            if (e.button === 2) { // Только ПКМ
                 if (!currentVideo) return;
                 isMouseDownOnTimeline = true;
                 handleTimelineInteraction(e);
