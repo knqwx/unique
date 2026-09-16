@@ -132,6 +132,7 @@
         }
 
         .preview-item.active-outline,
+        .bottom-line-timeline.active-outline,
         .bottom-line.active-outline {
             border-color: #ffffff !important;
         }
@@ -272,6 +273,9 @@
             align-items: center;
             user-select: none;
             box-sizing: border-box;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
         }
 
         .timeline-frames {
@@ -321,7 +325,7 @@
             box-sizing: border-box;
         }
         
-        .bottom-line:hover {
+        .bottom-line:hover, .bottom-line-timeline:hover {
             border-color: #485059;
         }
     </style>
@@ -361,7 +365,7 @@
         const framesContainer = document.getElementById('framesContainer');
         const timelinePlayhead = document.getElementById('timelinePlayhead');
         const trimBtn = document.getElementById('trimBtn');
-        const timelineTracks = document.querySelectorAll('.bottom-line');
+        const allTimelineTracks = document.querySelectorAll('.bottom-line-timeline, .bottom-line');
 
         let hasItems = false;
         let gridWrapper = null;
@@ -379,14 +383,17 @@
             }
         }
 
-        // Обработка клика ЛКМ по дорожкам таймлайна
-        timelineTracks.forEach(track => {
+        // Обработка выбора любого элемента на таймлайне по ЛКМ
+        allTimelineTracks.forEach(track => {
             track.addEventListener('click', (e) => {
+                // Если кликнули ПКМ (для таймлайна), пропускаем выбор
+                if (e.button === 2) return;
+                
                 e.stopPropagation();
                 
                 const isAlreadyActive = track.classList.contains('active-outline');
                 
-                timelineTracks.forEach(t => t.classList.remove('active-outline'));
+                allTimelineTracks.forEach(t => t.classList.remove('active-outline'));
 
                 if (!isAlreadyActive) {
                     track.classList.add('active-outline');
@@ -397,6 +404,15 @@
 
                 updateTrimButtonState();
             });
+        });
+
+        // Сброс выбора при клике в пустоту
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.bottom-line-timeline') && !e.target.closest('.bottom-line') && !e.target.closest('.preview-item')) {
+                allTimelineTracks.forEach(t => t.classList.remove('active-outline'));
+                isTimelineTrackSelected = false;
+                updateTrimButtonState();
+            }
         });
 
         fileInput.addEventListener('change', function(event) {
@@ -624,7 +640,7 @@
             currentClip = null;
             isMediaSelected = false;
             isTimelineTrackSelected = false;
-            timelineTracks.forEach(t => t.classList.remove('active-outline'));
+            allTimelineTracks.forEach(t => t.classList.remove('active-outline'));
             framesContainer.innerHTML = '';
             timelinePlayhead.style.left = '0%';
             updateTrimButtonState();
@@ -646,7 +662,7 @@
         }
 
         timelineWrapper.addEventListener('mousedown', (e) => {
-            if (e.button === 2) { // Только ПКМ
+            if (e.button === 2) { // Только ПКМ для передвижения ползунка
                 if (!currentVideo) return;
                 isMouseDownOnTimeline = true;
                 handleTimelineInteraction(e);
