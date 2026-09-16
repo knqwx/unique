@@ -131,10 +131,15 @@
             border-color: #485059;
         }
 
+        .preview-item.active-outline {
+            border-color: #ffffff !important;
+        }
+
         .preview-media {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            pointer-events: none;
         }
 
         .trim-btn {
@@ -200,14 +205,7 @@
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
-            cursor: pointer;
-            border: 2px solid transparent;
             border-radius: 4px;
-            transition: border-color 0.15s ease;
-        }
-
-        .main-media.active-outline {
-            border-color: #ffffff !important;
         }
 
         .video-controls {
@@ -371,6 +369,7 @@
         let gridWrapper = null;
         let currentVideo = null;
         let currentClip = null;
+        let currentItemElement = null;
         let isDragging = false;
         let isMediaSelected = false;
 
@@ -427,7 +426,15 @@
                 itemDiv.appendChild(mediaElement);
             }
 
+            // ЛКМ по превью выбирает клип и загружает его в плеер
             itemDiv.addEventListener('click', function() {
+                // Снимаем выделение со всех остальных элементов
+                document.querySelectorAll('.preview-item').forEach(el => el.classList.remove('active-outline'));
+                
+                itemDiv.classList.add('active-outline');
+                currentItemElement = itemDiv;
+                isMediaSelected = true;
+
                 loadClipToMain(clipData);
             });
 
@@ -443,7 +450,6 @@
             framesContainer.innerHTML = '';
             timelinePlayhead.style.left = '0%';
             timelineSlider.disabled = true;
-            isMediaSelected = false;
             updateTrimButtonState();
 
             const mediaContainer = document.createElement('div');
@@ -572,16 +578,6 @@
                     playBtn.innerHTML = '▶';
                 });
             }
-
-            // ЛКМ выбирает клип и включает/выключает белую обводку, но НЕ двигает бегунок
-            if (mainMedia) {
-                mainMedia.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    isMediaSelected = !isMediaSelected;
-                    mainMedia.classList.toggle('active-outline', isMediaSelected);
-                    updateTrimButtonState();
-                });
-            }
         }
 
         // Кнопка Trim
@@ -632,9 +628,9 @@
 
         let isMouseDownOnTimeline = false;
 
-        // ПКМ (mousedown с кнопкой 2) двигает полоску и включает перетаскивание, контекстное меню заблокировано
+        // ПКМ двигает полоску таймлайна
         timelineWrapper.addEventListener('mousedown', (e) => {
-            if (e.button === 2) { // Правая кнопка мыши
+            if (e.button === 2) {
                 if (!currentVideo || timelineSlider.disabled) return;
                 isMouseDownOnTimeline = true;
                 isDragging = true;
