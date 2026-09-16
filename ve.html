@@ -17,13 +17,13 @@
             justify-content: flex-start;
             align-items: flex-start;
             gap: 20px;
-            padding: 20px;
+            padding: 10px 20px 20px 20px; /* Уменьшен верхний отступ страницы, чтобы поднять сайдбар выше */
             box-sizing: border-box;
             overflow: hidden;
             position: relative;
         }
 
-        /* Контейнер для трех толстых темно-красных линий в самом низу */
+        /* Контейнер для трех темно-серых линий в самом низу (по 40px каждая) */
         .bottom-lines {
             position: fixed;
             bottom: 0;
@@ -39,8 +39,8 @@
 
         .bottom-line {
             width: 100%;
-            height: 24px; /* Толщина линий увеличена до 24 пикселей */
-            background-color: #8b0000; /* Темно-красный цвет */
+            height: 40px; /* Толщина линий 40 пикселей */
+            background-color: #33383d; /* Темно-серый цвет */
         }
 
         .sidebar {
@@ -49,8 +49,7 @@
             gap: 15px;
             width: 240px;
             flex-shrink: 0;
-            /* Подняли сайдбар выше, чтобы учесть увеличенные линии внизу (3 линии по 24px + отступы) */
-            height: calc(100vh - 110px);
+            height: calc(100vh - 20px); /* Скорректированная высота под новый отступ */
         }
 
         .box {
@@ -271,7 +270,7 @@
         <span class="main-placeholder">Select an item from the list</span>
     </div>
 
-    <!-- Три толстые темно-красные линии в самом низу -->
+    <!-- Три толстые темно-серые линии в самом низу (по 40px) -->
     <div class="bottom-lines">
         <div class="bottom-line"></div>
         <div class="bottom-line"></div>
