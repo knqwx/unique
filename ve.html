@@ -131,9 +131,7 @@
             border-color: #485059;
         }
 
-        .preview-item.active-outline,
-        .bottom-line-timeline.active-outline,
-        .bottom-line.active-outline {
+        .preview-item.active-outline {
             border-color: #ffffff !important;
         }
 
@@ -268,14 +266,34 @@
             height: 40px;
             background-color: #33383d;
             border-radius: 4px;
-            overflow: visible;
+            overflow: hidden;
             display: flex;
+            flex-direction: row;
             align-items: center;
             user-select: none;
             box-sizing: border-box;
-            cursor: pointer;
+        }
+
+        .timeline-clip {
+            position: relative;
+            height: 100%;
+            background-color: #3b4249;
             border: 2px solid transparent;
+            box-sizing: border-box;
+            cursor: pointer;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
             transition: border-color 0.2s;
+        }
+
+        .timeline-clip:hover {
+            border-color: #485059;
+        }
+
+        .timeline-clip.active-outline {
+            border-color: #ffffff !important;
+            z-index: 10;
         }
 
         .timeline-frames {
@@ -290,7 +308,6 @@
             z-index: 1;
             pointer-events: none;
             overflow: hidden;
-            border-radius: 2px;
         }
 
         .timeline-frame {
@@ -308,7 +325,7 @@
             width: 3px;
             background-color: #ffffff;
             left: 0%;
-            z-index: 5;
+            z-index: 20;
             pointer-events: none;
             box-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
             border-radius: 1px;
@@ -319,14 +336,7 @@
             height: 40px;
             background-color: #33383d;
             border-radius: 4px;
-            cursor: pointer;
-            border: 2px solid transparent;
-            transition: border-color 0.2s;
             box-sizing: border-box;
-        }
-        
-        .bottom-line:hover, .bottom-line-timeline:hover {
-            border-color: #485059;
         }
     </style>
 </head>
@@ -350,7 +360,6 @@
 
     <div class="bottom-lines-box">
         <div class="bottom-line-timeline" id="timelineWrapper" oncontextmenu="return false;">
-            <div class="timeline-frames" id="framesContainer"></div>
             <div class="timeline-playhead" id="timelinePlayhead"></div>
         </div>
         <div class="bottom-line" id="timelineTrack1"></div>
@@ -362,58 +371,23 @@
         const previewContainer = document.getElementById('previewContainer');
         const mainDisplay = document.getElementById('mainDisplay');
         const timelineWrapper = document.getElementById('timelineWrapper');
-        const framesContainer = document.getElementById('framesContainer');
         const timelinePlayhead = document.getElementById('timelinePlayhead');
         const trimBtn = document.getElementById('trimBtn');
-        const allTimelineTracks = document.querySelectorAll('.bottom-line-timeline, .bottom-line');
 
         let hasItems = false;
         let gridWrapper = null;
         let currentVideo = null;
-        let currentClip = null;
-        let isMediaSelected = false;
-        let isTimelineTrackSelected = false;
+        let activeClipObj = null; // Текущий выбранный клип на таймлайне
+        let timelineClips = [];   // Массив всех клипов на таймлайне
         let isMouseDownOnTimeline = false;
 
         function updateTrimButtonState() {
-            if (currentClip && currentClip.type.startsWith('video/') && isMediaSelected && isTimelineTrackSelected) {
+            if (activeClipObj && activeClipObj.type.startsWith('video/')) {
                 trimBtn.disabled = false;
             } else {
                 trimBtn.disabled = true;
             }
         }
-
-        // Обработка выбора любого элемента на таймлайне по ЛКМ
-        allTimelineTracks.forEach(track => {
-            track.addEventListener('click', (e) => {
-                // Если кликнули ПКМ (для таймлайна), пропускаем выбор
-                if (e.button === 2) return;
-                
-                e.stopPropagation();
-                
-                const isAlreadyActive = track.classList.contains('active-outline');
-                
-                allTimelineTracks.forEach(t => t.classList.remove('active-outline'));
-
-                if (!isAlreadyActive) {
-                    track.classList.add('active-outline');
-                    isTimelineTrackSelected = true;
-                } else {
-                    isTimelineTrackSelected = false;
-                }
-
-                updateTrimButtonState();
-            });
-        });
-
-        // Сброс выбора при клике в пустоту
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.bottom-line-timeline') && !e.target.closest('.bottom-line') && !e.target.closest('.preview-item')) {
-                allTimelineTracks.forEach(t => t.classList.remove('active-outline'));
-                isTimelineTrackSelected = false;
-                updateTrimButtonState();
-            }
-        });
 
         fileInput.addEventListener('change', function(event) {
             const files = event.target.files;
@@ -456,20 +430,45 @@
                 mediaElement = document.createElement('video');
                 mediaElement.src = clipData.url;
                 mediaElement.className = 'preview-media';
-                mediaElement.currentTime = clipData.startTime;
+                mediaElement.currentTime = 0;
                 itemDiv.appendChild(mediaElement);
             }
 
+            // При клике на превью создаем базовый клип на таймлайне на всю длительность
             itemDiv.addEventListener('click', function(e) {
                 e.stopPropagation();
                 
                 document.querySelectorAll('.preview-item').forEach(el => el.classList.remove('active-outline'));
-                
                 itemDiv.classList.add('active-outline');
-                isMediaSelected = true;
 
-                loadClipToMain(clipData);
-                updateTrimButtonState();
+                // Создаем видео объект для получения длительности, если это видео
+                if (clipData.type.startsWith('video/')) {
+                    const tempVid = document.createElement('video');
+                    tempVid.src = clipData.url;
+                    tempVid.addEventListener('loadedmetadata', () => {
+                        const fullClip = {
+                            file: clipData.file,
+                            url: clipData.url,
+                            type: clipData.type,
+                            startTime: 0,
+                            endTime: tempVid.duration
+                        };
+                        timelineClips = [fullClip];
+                        renderTimeline();
+                        selectClip(fullClip);
+                    });
+                } else {
+                    const fullClip = {
+                        file: clipData.file,
+                        url: clipData.url,
+                        type: clipData.type,
+                        startTime: 0,
+                        endTime: 5 // Для фото дефолтная длина
+                    };
+                    timelineClips = [fullClip];
+                    renderTimeline();
+                    selectClip(fullClip);
+                }
             });
 
             if (gridWrapper) {
@@ -477,11 +476,106 @@
             }
         }
 
+        function renderTimeline() {
+            // Очищаем старые клипы, но оставляем playhead
+            const existingClips = timelineWrapper.querySelectorAll('.timeline-clip');
+            existingClips.forEach(c => c.remove());
+
+            // Считаем общую суммарную длительность всех клипов на таймлайне для расчета ширин
+            const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
+
+            timelineClips.forEach(clip => {
+                const clipEl = document.createElement('div');
+                clipEl.className = 'timeline-clip';
+                const clipDuration = clip.endTime - clip.startTime;
+                const widthPercent = totalDuration > 0 ? (clipDuration / totalDuration) * 100 : 100;
+                clipEl.style.width = `${widthPercent}%`;
+
+                if (activeClipObj === clip) {
+                    clipEl.classList.add('active-outline');
+                }
+
+                // Генерируем кадры внутри клипа, если это видео
+                if (clip.type.startsWith('video/')) {
+                    const framesContainer = document.createElement('div');
+                    framesContainer.className = 'timeline-frames';
+                    clipEl.appendChild(framesContainer);
+
+                    generateFramesForClip(clip, framesContainer);
+                }
+
+                // ЛКМ по конкретному клипу на таймлайне
+                clipEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectClip(clip);
+                });
+
+                timelineWrapper.appendChild(clipEl);
+            });
+        }
+
+        function generateFramesForClip(clip, framesContainer) {
+            const frameCount = 20; 
+            const duration = clip.endTime - clip.startTime;
+            const interval = duration / frameCount;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 80;
+            canvas.height = 40;
+            const ctx = canvas.getContext('2d');
+
+            const tempVideo = document.createElement('video');
+            tempVideo.src = clip.url;
+            tempVideo.muted = true;
+            tempVideo.playsInline = true;
+
+            let currentIndex = 0;
+            const frameData = new Array(frameCount);
+
+            function processNext() {
+                if (currentIndex < frameCount) {
+                    tempVideo.currentTime = Math.min(clip.startTime + (currentIndex * interval), clip.endTime - 0.01);
+                } else {
+                    framesContainer.innerHTML = '';
+                    for (let j = 0; j < frameCount; j++) {
+                        const frameImg = document.createElement('img');
+                        frameImg.src = frameData[j];
+                        frameImg.className = 'timeline-frame';
+                        framesContainer.appendChild(frameImg);
+                    }
+                }
+            }
+
+            tempVideo.addEventListener('seeked', () => {
+                ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+                frameData[currentIndex] = canvas.toDataURL();
+                currentIndex++;
+                processNext();
+            });
+
+            tempVideo.addEventListener('loadeddata', () => {
+                processNext();
+            });
+        }
+
+        function selectClip(clip) {
+            activeClipObj = clip;
+            document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
+            
+            // Находим нужный элемент на таймлайне и подсвечиваем
+            const index = timelineClips.indexOf(clip);
+            const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
+            if (clipElements[index]) {
+                clipElements[index].classList.add('active-outline');
+            }
+
+            loadClipToMain(clip);
+            updateTrimButtonState();
+        }
+
         function loadClipToMain(clipData) {
             mainDisplay.innerHTML = '';
             currentVideo = null;
-            currentClip = clipData;
-            framesContainer.innerHTML = '';
             timelinePlayhead.style.left = '0%';
 
             const mediaContainer = document.createElement('div');
@@ -524,74 +618,32 @@
                 };
 
                 mainMedia.addEventListener('loadedmetadata', () => {
-                    const fullDuration = mainMedia.duration;
-                    const start = clipData.startTime || 0;
-                    const end = clipData.endTime !== null ? clipData.endTime : fullDuration;
-
-                    mainMedia.currentTime = start;
-                    timeDisplay.textContent = `${formatTime(start)} / ${formatTime(end)}`;
-
-                    const frameCount = 50; 
-                    const interval = (end - start) / frameCount;
-                    
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 100;
-                    canvas.height = 40;
-                    const ctx = canvas.getContext('2d');
-
-                    const tempVideo = document.createElement('video');
-                    tempVideo.src = clipData.url;
-                    tempVideo.muted = true;
-                    tempVideo.playsInline = true;
-
-                    let currentIndex = 0;
-                    const frameData = new Array(frameCount);
-
-                    function processNext() {
-                        if (currentIndex < frameCount) {
-                            tempVideo.currentTime = Math.min(start + (currentIndex * interval), end - 0.01);
-                        } else {
-                            framesContainer.innerHTML = '';
-                            for (let j = 0; j < frameCount; j++) {
-                                const frameImg = document.createElement('img');
-                                frameImg.src = frameData[j];
-                                frameImg.className = 'timeline-frame';
-                                framesContainer.appendChild(frameImg);
-                            }
-                        }
-                    }
-
-                    tempVideo.addEventListener('seeked', () => {
-                        ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
-                        frameData[currentIndex] = canvas.toDataURL();
-                        currentIndex++;
-                        processNext();
-                    });
-
-                    tempVideo.addEventListener('loadeddata', () => {
-                        processNext();
-                    });
+                    mainMedia.currentTime = clipData.startTime;
+                    timeDisplay.textContent = `${formatTime(0)} / ${formatTime(clipData.endTime - clipData.startTime)}`;
                 });
 
                 mainMedia.addEventListener('timeupdate', () => {
-                    const start = clipData.startTime || 0;
-                    const end = clipData.endTime !== null ? clipData.endTime : mainMedia.duration;
-
-                    if (mainMedia.currentTime >= end) {
+                    if (mainMedia.currentTime >= clipData.endTime) {
                         mainMedia.pause();
-                        mainMedia.currentTime = start;
+                        mainMedia.currentTime = clipData.startTime;
                         playBtn.innerHTML = '▶';
                     }
 
-                    if (end > start) {
-                        const percent = ((mainMedia.currentTime - start) / (end - start)) * 100;
+                    const currentDuration = clipData.endTime - clipData.startTime;
+                    if (currentDuration > 0) {
+                        const elapsed = mainMedia.currentTime - clipData.startTime;
+                        const percent = (elapsed / currentDuration) * 100;
                         timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
                     }
-                    timeDisplay.textContent = `${formatTime(mainMedia.currentTime)} / ${formatTime(end)}`;
+                    const elapsedDisplay = mainMedia.currentTime - clipData.startTime;
+                    timeDisplay.textContent = `${formatTime(Math.max(0, elapsedDisplay))} / ${formatTime(clipData.endTime - clipData.startTime)}`;
                 });
 
                 playBtn.addEventListener('click', () => {
                     if (mainMedia.paused) {
+                        if (mainMedia.currentTime < clipData.startTime || mainMedia.currentTime >= clipData.endTime) {
+                            mainMedia.currentTime = clipData.startTime;
+                        }
                         mainMedia.play();
                         playBtn.innerHTML = '❚❚';
                     } else {
@@ -606,54 +658,49 @@
             }
         }
 
-        // Кнопка Trim
+        // Кнопка Trim — разделяет текущий выбранный клип на два прямо в массиве таймлайна
         trimBtn.addEventListener('click', () => {
-            if (!currentVideo || !currentClip || !isMediaSelected || !isTimelineTrackSelected) return;
+            if (!currentVideo || !activeClipObj) return;
 
             const splitTime = currentVideo.currentTime;
-            const start = currentClip.startTime || 0;
-            const end = currentClip.endTime !== null ? currentClip.endTime : currentVideo.duration;
+            const start = activeClipObj.startTime;
+            const end = activeClipObj.endTime;
 
             if (splitTime <= start + 0.1 || splitTime >= end - 0.1) return;
 
             const clipPart1 = {
-                file: currentClip.file,
-                url: currentClip.url,
-                type: currentClip.type,
+                file: activeClipObj.file,
+                url: activeClipObj.url,
+                type: activeClipObj.type,
                 startTime: start,
                 endTime: splitTime
             };
 
             const clipPart2 = {
-                file: currentClip.file,
-                url: currentClip.url,
-                type: currentClip.type,
+                file: activeClipObj.file,
+                url: activeClipObj.url,
+                type: activeClipObj.type,
                 startTime: splitTime,
                 endTime: end
             };
 
-            createPreviewItem(clipPart1);
-            createPreviewItem(clipPart2);
+            const index = timelineClips.indexOf(activeClipObj);
+            if (index !== -1) {
+                timelineClips.splice(index, 1, clipPart1, clipPart2);
+            }
 
-            mainDisplay.innerHTML = '<span class="main-placeholder">Select an item from the list</span>';
-            currentVideo = null;
-            currentClip = null;
-            isMediaSelected = false;
-            isTimelineTrackSelected = false;
-            allTimelineTracks.forEach(t => t.classList.remove('active-outline'));
-            framesContainer.innerHTML = '';
-            timelinePlayhead.style.left = '0%';
-            updateTrimButtonState();
+            renderTimeline();
+            selectClip(clipPart1);
         });
 
-        // Управление таймлайном строго через ПКМ
+        // Управление позицией воспроизведения через ПКМ по таймлайну
         function handleTimelineInteraction(e) {
-            if (!currentVideo) return;
+            if (!currentVideo || !activeClipObj) return;
             const rect = timelineWrapper.getBoundingClientRect();
             const clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             
-            const start = currentClip.startTime || 0;
-            const end = currentClip.endTime !== null ? currentClip.endTime : currentVideo.duration;
+            const start = activeClipObj.startTime;
+            const end = activeClipObj.endTime;
             const durationSpan = end - start;
 
             const newTime = start + (clickPosition * durationSpan);
@@ -662,8 +709,8 @@
         }
 
         timelineWrapper.addEventListener('mousedown', (e) => {
-            if (e.button === 2) { // Только ПКМ для передвижения ползунка
-                if (!currentVideo) return;
+            if (e.button === 2) { // Только ПКМ для сдвига ползунка
+                if (!currentVideo || !activeClipObj) return;
                 isMouseDownOnTimeline = true;
                 handleTimelineInteraction(e);
             }
