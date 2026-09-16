@@ -377,8 +377,8 @@
         let hasItems = false;
         let gridWrapper = null;
         let currentVideo = null;
-        let activeClipObj = null; // Текущий выбранный клип на таймлайне
-        let timelineClips = [];   // Массив всех клипов на таймлайне
+        let activeClipObj = null; 
+        let timelineClips = [];   
         let isMouseDownOnTimeline = false;
 
         function updateTrimButtonState() {
@@ -434,14 +434,13 @@
                 itemDiv.appendChild(mediaElement);
             }
 
-            // При клике на превью создаем базовый клип на таймлайне на всю длительность
+            // При клике на превью просто добавляем клип на таймлайн, но НЕ выбираем его автоматически
             itemDiv.addEventListener('click', function(e) {
                 e.stopPropagation();
                 
                 document.querySelectorAll('.preview-item').forEach(el => el.classList.remove('active-outline'));
                 itemDiv.classList.add('active-outline');
 
-                // Создаем видео объект для получения длительности, если это видео
                 if (clipData.type.startsWith('video/')) {
                     const tempVid = document.createElement('video');
                     tempVid.src = clipData.url;
@@ -454,8 +453,10 @@
                             endTime: tempVid.duration
                         };
                         timelineClips = [fullClip];
+                        activeClipObj = null; // Сбрасываем выбор
                         renderTimeline();
-                        selectClip(fullClip);
+                        loadClipToMain(fullClip); // Просто показываем, но не делаем активным для трима/обводки
+                        updateTrimButtonState();
                     });
                 } else {
                     const fullClip = {
@@ -463,11 +464,13 @@
                         url: clipData.url,
                         type: clipData.type,
                         startTime: 0,
-                        endTime: 5 // Для фото дефолтная длина
+                        endTime: 5
                     };
                     timelineClips = [fullClip];
+                    activeClipObj = null;
                     renderTimeline();
-                    selectClip(fullClip);
+                    loadClipToMain(fullClip);
+                    updateTrimButtonState();
                 }
             });
 
@@ -477,11 +480,9 @@
         }
 
         function renderTimeline() {
-            // Очищаем старые клипы, но оставляем playhead
             const existingClips = timelineWrapper.querySelectorAll('.timeline-clip');
             existingClips.forEach(c => c.remove());
 
-            // Считаем общую суммарную длительность всех клипов на таймлайне для расчета ширин
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
 
             timelineClips.forEach(clip => {
@@ -495,7 +496,6 @@
                     clipEl.classList.add('active-outline');
                 }
 
-                // Генерируем кадры внутри клипа, если это видео
                 if (clip.type.startsWith('video/')) {
                     const framesContainer = document.createElement('div');
                     framesContainer.className = 'timeline-frames';
@@ -504,7 +504,7 @@
                     generateFramesForClip(clip, framesContainer);
                 }
 
-                // ЛКМ по конкретному клипу на таймлайне
+                // ЛКМ по конкретному клипу на таймлайне — теперь только тут клип становится выбранным
                 clipEl.addEventListener('click', (e) => {
                     e.stopPropagation();
                     selectClip(clip);
@@ -562,7 +562,6 @@
             activeClipObj = clip;
             document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
             
-            // Находим нужный элемент на таймлайне и подсвечиваем
             const index = timelineClips.indexOf(clip);
             const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
             if (clipElements[index]) {
@@ -658,7 +657,6 @@
             }
         }
 
-        // Кнопка Trim — разделяет текущий выбранный клип на два прямо в массиве таймлайна
         trimBtn.addEventListener('click', () => {
             if (!currentVideo || !activeClipObj) return;
 
@@ -693,7 +691,6 @@
             selectClip(clipPart1);
         });
 
-        // Управление позицией воспроизведения через ПКМ по таймлайну
         function handleTimelineInteraction(e) {
             if (!currentVideo || !activeClipObj) return;
             const rect = timelineWrapper.getBoundingClientRect();
@@ -709,7 +706,7 @@
         }
 
         timelineWrapper.addEventListener('mousedown', (e) => {
-            if (e.button === 2) { // Только ПКМ для сдвига ползунка
+            if (e.button === 2) { 
                 if (!currentVideo || !activeClipObj) return;
                 isMouseDownOnTimeline = true;
                 handleTimelineInteraction(e);
