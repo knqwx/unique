@@ -16,7 +16,7 @@
             flex-direction: row;
             justify-content: flex-start;
             align-items: flex-start;
-            gap: 20px;
+            gap: 15px;
             padding: 20px;
             box-sizing: border-box;
             overflow: hidden;
@@ -31,6 +31,16 @@
             width: 240px;
             flex-shrink: 0;
             height: calc(100vh - 40px);
+        }
+
+        .right-sidebar {
+            width: 240px;
+            flex-shrink: 0;
+            height: calc(100vh - 40px);
+            background-color: #2c3136;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            box-sizing: border-box;
         }
 
         .box {
@@ -122,8 +132,10 @@
             object-fit: cover;
         }
 
+        /* Центральная область занимает пространство между левым и правым сайдбарами */
         .main-display {
-            width: calc(100% - 280px);
+            width: calc(100% - 510px); /* 240 (лев) + 240 (прав) + отступы/гэпы */
+            flex-grow: 1;
             height: calc(100vh - 215px);
             background-color: #2c3136;
             border-radius: 8px;
@@ -157,7 +169,7 @@
             object-fit: contain;
         }
 
-        /* Кнопка Play и тайм-код под видео */
+        /* Панель управления снизу видео (только тайм-код, кнопка воспроизведения перенесена в центр) */
         .video-controls {
             width: 100%;
             background-color: #212529;
@@ -165,36 +177,49 @@
             box-sizing: border-box;
             display: none;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-end;
             color: #ffffff;
             font-size: 14px;
         }
 
-        .play-btn {
-            background-color: #3b4249;
+        /* Кнопка Play/Pause по центру видео */
+        .center-play-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            background-color: rgba(33, 37, 41, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
             color: #ffffff;
-            border: none;
-            padding: 6px 14px;
-            border-radius: 4px;
+            font-size: 20px;
             cursor: pointer;
-            font-family: 'Rubik', sans-serif;
-            font-weight: 500;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            transition: background-color 0.2s, transform 0.2s, border-color 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
 
-        .play-btn:hover {
-            background-color: #485059;
+        .center-play-btn:hover {
+            background-color: rgba(44, 49, 54, 0.95);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translate(-50%, -50%) scale(1.05);
         }
 
         #fileInput {
             display: none;
         }
 
-        /* Контейнер-бокс для трех линий внизу */
+        /* Нижний блок с линиями подстроили под новые отступы справа */
         .bottom-lines-box {
             position: fixed;
             bottom: 20px;
-            left: 280px;
-            right: 20px;
+            left: 255px; /* Учитывает левый сайдбар + отступ */
+            right: 275px; /* Учитывает правый сайдбар + отступ */
             background-color: #2c3136;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
@@ -206,7 +231,6 @@
             z-index: 1000;
         }
 
-        /* Верхняя линия (всегда видимая, внутри неё таймлайн) */
         .bottom-line-timeline {
             position: relative;
             width: 100%;
@@ -249,7 +273,6 @@
             margin: 0;
         }
 
-        /* Обычные линии */
         .bottom-line {
             width: 100%;
             height: 40px;
@@ -272,7 +295,9 @@
         <span class="main-placeholder">Select an item from the list</span>
     </div>
 
-    <!-- Бокс с линиями внизу. Верхняя линия теперь всегда видна -->
+    <!-- Правый сайдбар -->
+    <div class="right-sidebar"></div>
+
     <div class="bottom-lines-box">
         <div class="bottom-line-timeline" id="timelineWrapper">
             <div class="timeline-frames" id="framesContainer"></div>
@@ -347,14 +372,16 @@
                         mediaContainer.appendChild(video);
                         currentVideo = video;
 
+                        // Кнопка Play/Pause по центру с символом ▶
+                        const centerPlayBtn = document.createElement('button');
+                        centerPlayBtn.className = 'center-play-btn';
+                        centerPlayBtn.innerHTML = '▶';
+                        centerPlayBtn.style.display = 'flex';
+                        mainDisplay.appendChild(centerPlayBtn);
+
                         const controls = document.createElement('div');
                         controls.className = 'video-controls';
                         controls.style.display = 'flex';
-
-                        const playBtn = document.createElement('button');
-                        playBtn.className = 'play-btn';
-                        playBtn.textContent = 'Play';
-                        controls.appendChild(playBtn);
 
                         const timeDisplay = document.createElement('span');
                         timeDisplay.textContent = '0:00 / 0:00';
@@ -423,18 +450,21 @@
                             timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
                         });
 
-                        playBtn.addEventListener('click', () => {
+                        const togglePlay = () => {
                             if (video.paused) {
                                 video.play();
-                                playBtn.textContent = 'Pause';
+                                centerPlayBtn.innerHTML = '❚❚';
                             } else {
                                 video.pause();
-                                playBtn.textContent = 'Play';
+                                centerPlayBtn.innerHTML = '▶';
                             }
-                        });
+                        };
+
+                        centerPlayBtn.addEventListener('click', togglePlay);
+                        video.addEventListener('click', togglePlay);
 
                         video.addEventListener('ended', () => {
-                            playBtn.textContent = 'Play';
+                            centerPlayBtn.innerHTML = '▶';
                         });
                     }
                 });
