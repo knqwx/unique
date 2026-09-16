@@ -41,6 +41,10 @@
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
             box-sizing: border-box;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
 
         .box {
@@ -120,6 +124,7 @@
             cursor: pointer;
             border: 2px solid transparent;
             transition: border-color 0.2s;
+            position: relative;
         }
 
         .preview-item:hover {
@@ -130,6 +135,29 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+
+        .trim-btn {
+            background-color: #3b4249;
+            color: #ffffff;
+            border: none;
+            width: 100%;
+            height: 40px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: 'Rubik', sans-serif;
+            transition: background-color 0.2s;
+        }
+
+        .trim-btn:hover {
+            background-color: #485059;
+        }
+
+        .trim-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .main-display {
@@ -178,7 +206,6 @@
             border-color: #ffffff !important;
         }
 
-        /* Панель управления снизу видео */
         .video-controls {
             width: 100%;
             background-color: #212529;
@@ -237,7 +264,7 @@
             height: 40px;
             background-color: #33383d;
             border-radius: 4px;
-            overflow: hidden;
+            overflow: visible; /* Разрешаем линии выходить за пределы таймлайна по вертикали */
             display: flex;
             align-items: center;
             user-select: none;
@@ -261,6 +288,8 @@
             flex-wrap: nowrap;
             z-index: 1;
             pointer-events: none;
+            overflow: hidden;
+            border-radius: 2px;
         }
 
         .timeline-frame {
@@ -271,17 +300,18 @@
             display: block;
         }
 
-        /* Индикатор текущего положения (белая вертикальная линия) */
+        /* Увеличенный бегунок (плейхед), который выступает выше и ниже таймлайна */
         .timeline-playhead {
             position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 2px;
+            top: -6px;
+            bottom: -6px;
+            width: 3px;
             background-color: #ffffff;
             left: 0%;
-            z-index: 2;
+            z-index: 5;
             pointer-events: none;
-            box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+            box-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+            border-radius: 1px;
         }
 
         .timeline-slider {
@@ -316,7 +346,9 @@
         <span class="main-placeholder">Select an item from the list</span>
     </div>
 
-    <div class="right-sidebar"></div>
+    <div class="right-sidebar">
+        <button class="trim-btn" id="trimBtn" disabled>Trim Clip</button>
+    </div>
 
     <div class="bottom-lines-box">
         <div class="bottom-line-timeline" id="timelineWrapper" oncontextmenu="return false;">
@@ -336,10 +368,12 @@
         const framesContainer = document.getElementById('framesContainer');
         const timelinePlayhead = document.getElementById('timelinePlayhead');
         const timelineSlider = document.getElementById('timelineSlider');
+        const trimBtn = document.getElementById('trimBtn');
 
         let hasItems = false;
         let gridWrapper = null;
         let currentVideo = null;
+        let currentItemData = null;
         let isDragging = false;
 
         fileInput.addEventListener('change', function(event) {
@@ -356,160 +390,231 @@
 
             Array.from(files).forEach(file => {
                 const fileURL = URL.createObjectURL(file);
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'preview-item';
-
-                let mediaElement;
-                if (file.type.startsWith('image/')) {
-                    mediaElement = document.createElement('img');
-                    mediaElement.src = fileURL;
-                    mediaElement.className = 'preview-media';
-                    itemDiv.appendChild(mediaElement);
-                } else if (file.type.startsWith('video/')) {
-                    mediaElement = document.createElement('video');
-                    mediaElement.src = fileURL;
-                    mediaElement.className = 'preview-media';
-                    itemDiv.appendChild(mediaElement);
-                }
-
-                itemDiv.addEventListener('click', function() {
-                    mainDisplay.innerHTML = '';
-                    currentVideo = null;
-                    framesContainer.innerHTML = '';
-                    timelinePlayhead.style.left = '0%';
-                    timelineSlider.disabled = true;
-                    timelineWrapper.classList.remove('active-outline');
-
-                    const mediaContainer = document.createElement('div');
-                    mediaContainer.className = 'media-container';
-                    mainDisplay.appendChild(mediaContainer);
-
-                    let mainMedia;
-
-                    if (file.type.startsWith('image/')) {
-                        mainMedia = document.createElement('img');
-                        mainMedia.src = fileURL;
-                        mainMedia.className = 'main-media';
-                        mediaContainer.appendChild(mainMedia);
-                    } else if (file.type.startsWith('video/')) {
-                        mainMedia = document.createElement('video');
-                        mainMedia.src = fileURL;
-                        mainMedia.className = 'main-media';
-                        mediaContainer.appendChild(mainMedia);
-                        currentVideo = mainMedia;
-
-                        const controls = document.createElement('div');
-                        controls.className = 'video-controls';
-                        controls.style.display = 'flex';
-
-                        const playBtn = document.createElement('button');
-                        playBtn.className = 'play-btn';
-                        playBtn.innerHTML = '▶';
-                        controls.appendChild(playBtn);
-
-                        const timeDisplay = document.createElement('span');
-                        timeDisplay.textContent = '0:00 / 0:00';
-                        controls.appendChild(timeDisplay);
-
-                        mainDisplay.appendChild(controls);
-                        timelineSlider.disabled = false;
-
-                        const formatTime = (seconds) => {
-                            const mins = Math.floor(seconds / 60);
-                            const secs = Math.floor(seconds % 60);
-                            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-                        };
-
-                        mainMedia.addEventListener('loadedmetadata', () => {
-                            timelineSlider.max = mainMedia.duration;
-                            timeDisplay.textContent = `0:00 / ${formatTime(mainMedia.duration)}`;
-
-                            const duration = mainMedia.duration;
-                            const frameCount = 50; 
-                            const interval = duration / frameCount;
-                            
-                            const canvas = document.createElement('canvas');
-                            canvas.width = 100;
-                            canvas.height = 40;
-                            const ctx = canvas.getContext('2d');
-
-                            const tempVideo = document.createElement('video');
-                            tempVideo.src = fileURL;
-                            tempVideo.muted = true;
-                            tempVideo.playsInline = true;
-
-                            let currentIndex = 0;
-                            const frameData = new Array(frameCount);
-
-                            function processNext() {
-                                if (currentIndex < frameCount) {
-                                    tempVideo.currentTime = Math.min(currentIndex * interval, duration - 0.01);
-                                } else {
-                                    framesContainer.innerHTML = '';
-                                    for (let j = 0; j < frameCount; j++) {
-                                        const frameImg = document.createElement('img');
-                                        frameImg.src = frameData[j];
-                                        frameImg.className = 'timeline-frame';
-                                        framesContainer.appendChild(frameImg);
-                                    }
-                                }
-                            }
-
-                            tempVideo.addEventListener('seeked', () => {
-                                ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
-                                frameData[currentIndex] = canvas.toDataURL();
-                                currentIndex++;
-                                processNext();
-                            });
-
-                            tempVideo.addEventListener('loadeddata', () => {
-                                processNext();
-                            });
-                        });
-
-                        mainMedia.addEventListener('timeupdate', () => {
-                            if (!isDragging && mainMedia.duration) {
-                                timelineSlider.value = mainMedia.currentTime;
-                                const percent = (mainMedia.currentTime / mainMedia.duration) * 100;
-                                timelinePlayhead.style.left = `${percent}%`;
-                            }
-                            timeDisplay.textContent = `${formatTime(mainMedia.currentTime)} / ${formatTime(mainMedia.duration)}`;
-                        });
-
-                        playBtn.addEventListener('click', () => {
-                            if (mainMedia.paused) {
-                                mainMedia.play();
-                                playBtn.innerHTML = '❚❚';
-                            } else {
-                                mainMedia.pause();
-                                playBtn.innerHTML = '▶';
-                            }
-                        });
-
-                        mainMedia.addEventListener('ended', () => {
-                            playBtn.innerHTML = '▶';
-                        });
-                    }
-
-                    if (mainMedia) {
-                        mainMedia.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            mainMedia.classList.toggle('active-outline');
-                        });
-                    }
-                });
-
-                gridWrapper.appendChild(itemDiv);
+                addMediaItem(file, fileURL);
             });
             
             fileInput.value = '';
+        });
+
+        function addMediaItem(file, fileURL, startTime = 0, endTime = null) {
+            const itemData = {
+                file: file,
+                url: fileURL,
+                type: file.type,
+                startTime: startTime,
+                endTime: endTime
+            };
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'preview-item';
+
+            let mediaElement;
+            if (file.type.startsWith('image/')) {
+                mediaElement = document.createElement('img');
+                mediaElement.src = fileURL;
+                mediaElement.className = 'preview-media';
+                itemDiv.appendChild(mediaElement);
+            } else if (file.type.startsWith('video/')) {
+                mediaElement = document.createElement('video');
+                mediaElement.src = fileURL;
+                mediaElement.className = 'preview-media';
+                mediaElement.currentTime = startTime;
+                itemDiv.appendChild(mediaElement);
+            }
+
+            itemDiv.addEventListener('click', function() {
+                loadMediaToMain(itemData);
+            });
+
+            gridWrapper.appendChild(itemDiv);
+        }
+
+        function loadMediaToMain(itemData) {
+            mainDisplay.innerHTML = '';
+            currentVideo = null;
+            currentItemData = itemData;
+            framesContainer.innerHTML = '';
+            timelinePlayhead.style.left = '0%';
+            timelineSlider.disabled = true;
+            timelineWrapper.classList.remove('active-outline');
+            trimBtn.disabled = true;
+
+            const mediaContainer = document.createElement('div');
+            mediaContainer.className = 'media-container';
+            mainDisplay.appendChild(mediaContainer);
+
+            let mainMedia;
+
+            if (itemData.type.startsWith('image/')) {
+                mainMedia = document.createElement('img');
+                mainMedia.src = itemData.url;
+                mainMedia.className = 'main-media';
+                mediaContainer.appendChild(mainMedia);
+            } else if (itemData.type.startsWith('video/')) {
+                mainMedia = document.createElement('video');
+                mainMedia.src = itemData.url;
+                mainMedia.className = 'main-media';
+                mediaContainer.appendChild(mainMedia);
+                currentVideo = mainMedia;
+
+                const controls = document.createElement('div');
+                controls.className = 'video-controls';
+                controls.style.display = 'flex';
+
+                const playBtn = document.createElement('button');
+                playBtn.className = 'play-btn';
+                playBtn.innerHTML = '▶';
+                controls.appendChild(playBtn);
+
+                const timeDisplay = document.createElement('span');
+                timeDisplay.textContent = '0:00 / 0:00';
+                controls.appendChild(timeDisplay);
+
+                mainDisplay.appendChild(controls);
+                timelineSlider.disabled = false;
+                trimBtn.disabled = false;
+
+                const formatTime = (seconds) => {
+                    const mins = Math.floor(seconds / 60);
+                    const secs = Math.floor(seconds % 60);
+                    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+                };
+
+                mainMedia.addEventListener('loadedmetadata', () => {
+                    const fullDuration = mainMedia.duration;
+                    const start = itemData.startTime || 0;
+                    const end = itemData.endTime !== null ? itemData.endTime : fullDuration;
+
+                    mainMedia.currentTime = start;
+                    timelineSlider.min = start;
+                    timelineSlider.max = end;
+                    timelineSlider.value = start;
+
+                    timeDisplay.textContent = `${formatTime(start)} / ${formatTime(end)}`;
+
+                    const frameCount = 50; 
+                    const interval = (end - start) / frameCount;
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 100;
+                    canvas.height = 40;
+                    const ctx = canvas.getContext('2d');
+
+                    const tempVideo = document.createElement('video');
+                    tempVideo.src = itemData.url;
+                    tempVideo.muted = true;
+                    tempVideo.playsInline = true;
+
+                    let currentIndex = 0;
+                    const frameData = new Array(frameCount);
+
+                    function processNext() {
+                        if (currentIndex < frameCount) {
+                            tempVideo.currentTime = Math.min(start + (currentIndex * interval), end - 0.01);
+                        } else {
+                            framesContainer.innerHTML = '';
+                            for (let j = 0; j < frameCount; j++) {
+                                const frameImg = document.createElement('img');
+                                frameImg.src = frameData[j];
+                                frameImg.className = 'timeline-frame';
+                                framesContainer.appendChild(frameImg);
+                            }
+                        }
+                    }
+
+                    tempVideo.addEventListener('seeked', () => {
+                        ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+                        frameData[currentIndex] = canvas.toDataURL();
+                        currentIndex++;
+                        processNext();
+                    });
+
+                    tempVideo.addEventListener('loadeddata', () => {
+                        processNext();
+                    });
+                });
+
+                mainMedia.addEventListener('timeupdate', () => {
+                    const start = itemData.startTime || 0;
+                    const end = itemData.endTime !== null ? itemData.endTime : mainMedia.duration;
+
+                    if (mainMedia.currentTime >= end) {
+                        mainMedia.pause();
+                        mainMedia.currentTime = start;
+                        playBtn.innerHTML = '▶';
+                    }
+
+                    if (!isDragging && end > start) {
+                        timelineSlider.value = mainMedia.currentTime;
+                        const percent = ((mainMedia.currentTime - start) / (end - start)) * 100;
+                        timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
+                    }
+                    timeDisplay.textContent = `${formatTime(mainMedia.currentTime)} / ${formatTime(end)}`;
+                });
+
+                playBtn.addEventListener('click', () => {
+                    if (mainMedia.paused) {
+                        mainMedia.play();
+                        playBtn.innerHTML = '❚❚';
+                    } else {
+                        mainMedia.pause();
+                        playBtn.innerHTML = '▶';
+                    }
+                });
+
+                mainMedia.addEventListener('ended', () => {
+                    playBtn.innerHTML = '▶';
+                });
+            }
+
+            if (mainMedia) {
+                mainMedia.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    mainMedia.classList.toggle('active-outline');
+                });
+            }
+        }
+
+        // Функция обрезки (деления клипа на 2 части по текущей позиции плейхеда)
+        trimBtn.addEventListener('click', () => {
+            if (!currentVideo || !currentItemData) return;
+            const splitTime = currentVideo.currentTime;
+            const start = currentItemData.startTime || 0;
+            const end = currentItemData.endTime !== null ? currentItemData.endTime : currentVideo.duration;
+
+            // Разделение имеет смысл, если точка разреза внутри клипа с запасом
+            if (splitTime <= start + 0.1 || splitTime >= end - 0.1) return;
+
+            // Создаем два новых диапазона
+            const part1Start = start;
+            const part1End = splitTime;
+            const part2Start = splitTime;
+            const part2End = end;
+
+            // Добавляем две новые части в список превью
+            addMediaItem(currentItemData.file, currentItemData.url, part1Start, part1End);
+            addMediaItem(currentItemData.file, currentItemData.url, part2Start, part2End);
+
+            // Переключаемся на первую получившуюся часть
+            loadMediaToMain({
+                file: currentItemData.file,
+                url: currentItemData.url,
+                type: currentItemData.type,
+                startTime: part1Start,
+                endTime: part1End
+            });
         });
 
         function handleTimelineInteraction(e) {
             if (!currentVideo || timelineSlider.disabled) return;
             const rect = timelineWrapper.getBoundingClientRect();
             const clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-            const newTime = clickPosition * currentVideo.duration;
+            
+            const start = currentItemData.startTime || 0;
+            const end = currentItemData.endTime !== null ? currentItemData.endTime : currentVideo.duration;
+            const durationSpan = end - start;
+
+            const newTime = start + (clickPosition * durationSpan);
             currentVideo.currentTime = newTime;
             timelineSlider.value = newTime;
             timelinePlayhead.style.left = `${clickPosition * 100}%`;
@@ -523,7 +628,6 @@
             isDragging = true;
             
             timelineWrapper.classList.toggle('active-outline');
-
             handleTimelineInteraction(e);
         });
 
@@ -541,11 +645,13 @@
         });
 
         timelineSlider.addEventListener('input', () => {
-            if (currentVideo && currentVideo.duration) {
+            if (currentVideo) {
                 isDragging = true;
                 currentVideo.currentTime = timelineSlider.value;
-                const percent = (timelineSlider.value / currentVideo.duration) * 100;
-                timelinePlayhead.style.left = `${percent}%`;
+                const start = currentItemData.startTime || 0;
+                const end = currentItemData.endTime !== null ? currentItemData.endTime : currentVideo.duration;
+                const percent = ((timelineSlider.value - start) / (end - start)) * 100;
+                timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
             }
         });
         timelineSlider.addEventListener('change', () => {
