@@ -121,9 +121,10 @@
             object-fit: cover;
         }
 
+        /* Окно плеера поднято немного выше, оставляя аккуратный зазор до нижнего блока */
         .main-display {
-            width: 900px;
-            height: 580px;
+            width: calc(100% - 280px);
+            height: calc(100vh - 190px);
             background-color: #2c3136;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
@@ -235,11 +236,11 @@
             display: none;
         }
 
-        /* Контейнер-бокс для трех темно-серых линий внизу */
+        /* Контейнер-бокс для трех темно-серых линий внизу, доходящий до сайдбара */
         .bottom-lines-box {
             position: fixed;
             bottom: 20px;
-            left: 340px; /* Сдвинуто правее сайдбара (240px ширина сайдбара + 20px отступ + 20px паддинг) */
+            left: 280px; /* Начинается сразу после сайдбара (240px ширина + 20px отступ) */
             right: 20px;
             background-color: #2c3136;
             border-radius: 8px;
