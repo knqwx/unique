@@ -23,7 +23,7 @@
             position: relative;
         }
 
-        /* Контейнер для трех темно-красных линий в самом низу */
+        /* Контейнер для трех толстых темно-красных линий в самом низу */
         .bottom-lines {
             position: fixed;
             bottom: 0;
@@ -33,13 +33,13 @@
             flex-direction: column;
             gap: 4px; /* Расстояние между линиями */
             padding: 4px 0;
-            background-color: #1a1d20; /* Чтобы линии не накладывались прозрачно на контент */
+            background-color: #1a1d20;
             z-index: 1000;
         }
 
         .bottom-line {
             width: 100%;
-            height: 8px; /* Толщина линий */
+            height: 16px; /* Увеличено в 2 раза (было 8px) */
             background-color: #8b0000; /* Темно-красный цвет */
         }
 
