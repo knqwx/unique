@@ -380,6 +380,7 @@
         let activeClipObj = null; 
         let timelineClips = [];    
         let isMouseDownOnTimeline = false;
+        let globalCurrentTime = 0; // Запоминаем глобальное время по всей шкале таймлайна
 
         function updateTrimButtonState() {
             if (activeClipObj && activeClipObj.type.startsWith('video/')) {
@@ -453,8 +454,9 @@
                         };
                         timelineClips = [fullClip];
                         activeClipObj = null;
+                        globalCurrentTime = 0;
                         renderTimeline();
-                        loadClipToMain(fullClip);
+                        loadClipToMain(fullClip, 0);
                         updateTrimButtonState();
                     });
                 } else {
@@ -467,8 +469,9 @@
                     };
                     timelineClips = [fullClip];
                     activeClipObj = null;
+                    globalCurrentTime = 0;
                     renderTimeline();
-                    loadClipToMain(fullClip);
+                    loadClipToMain(fullClip, 0);
                     updateTrimButtonState();
                 }
             });
@@ -503,7 +506,6 @@
                     generateFramesForClip(clip, framesContainer);
                 }
 
-                // ЛКМ по клипу: переключение выбора (выбрать / снять выделение при повторном клике)
                 clipEl.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (activeClipObj === clip) {
@@ -515,6 +517,8 @@
 
                 timelineWrapper.appendChild(clipEl);
             });
+
+            updatePlayheadPosition();
         }
 
         function generateFramesForClip(clip, framesContainer) {
@@ -571,7 +575,24 @@
                 clipElements[index].classList.add('active-outline');
             }
 
-            loadClipToMain(clip);
+            // Вычисляем локальное время для выбранного клипа, основываясь на текущем глобальном положении линии
+            let accumulated = 0;
+            let targetLocalTime = clip.startTime;
+            for (let c of timelineClips) {
+                const dur = c.endTime - c.startTime;
+                if (globalCurrentTime >= accumulated && globalCurrentTime <= accumulated + dur) {
+                    targetLocalTime = c.startTime + (globalCurrentTime - accumulated);
+                    break;
+                }
+                accumulated += dur;
+            }
+            // Если глобальное время оказалось вне этого клипа, ставим в начало клипа
+            if (globalCurrentTime < accumulated - (clip.endTime - clip.startTime) || globalCurrentTime > accumulated) {
+                // Оставляем как есть или сбрасываем внутрь клипа
+                targetLocalTime = clip.startTime;
+            }
+
+            loadClipToMain(clip, targetLocalTime);
             updateTrimButtonState();
         }
 
@@ -581,10 +602,9 @@
             updateTrimButtonState();
         }
 
-        function loadClipToMain(clipData) {
+        function loadClipToMain(clipData, startPlaybackTime = clipData.startTime) {
             mainDisplay.innerHTML = '';
             currentVideo = null;
-            timelinePlayhead.style.left = '0%';
 
             const mediaContainer = document.createElement('div');
             mediaContainer.className = 'media-container';
@@ -626,8 +646,9 @@
                 };
 
                 mainMedia.addEventListener('loadedmetadata', () => {
-                    mainMedia.currentTime = clipData.startTime;
-                    timeDisplay.textContent = `${formatTime(0)} / ${formatTime(clipData.endTime - clipData.startTime)}`;
+                    mainMedia.currentTime = startPlaybackTime;
+                    const elapsed = startPlaybackTime - clipData.startTime;
+                    timeDisplay.textContent = `${formatTime(Math.max(0, elapsed))} / ${formatTime(clipData.endTime - clipData.startTime)}`;
                 });
 
                 mainMedia.addEventListener('timeupdate', () => {
@@ -637,20 +658,27 @@
                         playBtn.innerHTML = '▶';
                     }
 
-                    const currentDuration = clipData.endTime - clipData.startTime;
-                    if (currentDuration > 0) {
-                        const elapsed = mainMedia.currentTime - clipData.startTime;
-                        const percent = (elapsed / currentDuration) * 100;
-                        timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
+                    // Синхронизируем глобальное время
+                    let accumulated = 0;
+                    for (let c of timelineClips) {
+                        const dur = c.endTime - c.startTime;
+                        if (c === activeClipObj) {
+                            globalCurrentTime = accumulated + (mainMedia.currentTime - c.startTime);
+                            break;
+                        }
+                        accumulated += dur;
                     }
+                    updatePlayheadPosition();
+
+                    const currentDuration = clipData.endTime - clipData.startTime;
                     const elapsedDisplay = mainMedia.currentTime - clipData.startTime;
-                    timeDisplay.textContent = `${formatTime(Math.max(0, elapsedDisplay))} / ${formatTime(clipData.endTime - clipData.startTime)}`;
+                    timeDisplay.textContent = `${formatTime(Math.max(0, elapsedDisplay))} / ${formatTime(currentDuration)}`;
                 });
 
                 playBtn.addEventListener('click', () => {
                     if (mainMedia.paused) {
                         if (mainMedia.currentTime < clipData.startTime || mainMedia.currentTime >= clipData.endTime) {
-                            mainMedia.currentTime = clipData.startTime;
+                            mainMedia.currentTime = startPlaybackTime;
                         }
                         mainMedia.play();
                         playBtn.innerHTML = '❚❚';
@@ -663,6 +691,16 @@
                 mainMedia.addEventListener('ended', () => {
                     playBtn.innerHTML = '▶';
                 });
+            }
+        }
+
+        function updatePlayheadPosition() {
+            const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
+            if (totalDuration > 0) {
+                const percent = (globalCurrentTime / totalDuration) * 100;
+                timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
+            } else {
+                timelinePlayhead.style.left = '0%';
             }
         }
 
@@ -701,12 +739,12 @@
         });
 
         function handleTimelineInteraction(e) {
-            if (!currentVideo || timelineClips.length === 0) return;
+            if (timelineClips.length === 0) return;
             const rect = timelineWrapper.getBoundingClientRect();
             const clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
-            const targetTime = clickPosition * totalDuration;
+            globalCurrentTime = clickPosition * totalDuration;
 
             let accumulatedTime = 0;
             let targetClip = timelineClips[0];
@@ -714,9 +752,9 @@
 
             for (let clip of timelineClips) {
                 const duration = clip.endTime - clip.startTime;
-                if (targetTime <= accumulatedTime + duration) {
+                if (globalCurrentTime <= accumulatedTime + duration) {
                     targetClip = clip;
-                    clipLocalOffset = targetTime - accumulatedTime;
+                    clipLocalOffset = globalCurrentTime - accumulatedTime;
                     break;
                 }
                 accumulatedTime += duration;
@@ -724,25 +762,22 @@
                 clipLocalOffset = duration;
             }
 
-            // Перематываем видео независимо от выбранного клипа, но НЕ меняем activeClipObj и плеер
-            // Применяем перемотку только если этот клип сейчас в плеере, иначе просто двигаем визуальный ползунок по шкале
             if (currentVideo && activeClipObj === targetClip) {
                 currentVideo.currentTime = targetClip.startTime + clipLocalOffset;
             }
 
-            timelinePlayhead.style.left = `${clickPosition * 100}%`;
+            updatePlayheadPosition();
         }
 
         timelineWrapper.addEventListener('mousedown', (e) => {
             if (e.button === 2) { 
-                if (!currentVideo) return;
                 isMouseDownOnTimeline = true;
                 handleTimelineInteraction(e);
             }
         });
 
         window.addEventListener('mousemove', (e) => {
-            if (isMouseDownOnTimeline && currentVideo) {
+            if (isMouseDownOnTimeline) {
                 handleTimelineInteraction(e);
             }
         });
