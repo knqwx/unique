@@ -474,11 +474,11 @@
                             endTime: tempVid.duration
                         };
                         timelineClips = [fullClip];
-                        activeClipObj = null;
                         globalCurrentTime = 0;
                         renderTimeline();
-                        loadClipToMain(fullClip, 0);
-                        updateTrimButtonState();
+                        
+                        // ИСПРАВЛЕНИЕ: Автоматически выбираем клип
+                        selectClip(fullClip);
                     });
                 } else {
                     const fullClip = {
@@ -489,11 +489,11 @@
                         endTime: 5
                     };
                     timelineClips = [fullClip];
-                    activeClipObj = null;
                     globalCurrentTime = 0;
                     renderTimeline();
-                    loadClipToMain(fullClip, 0);
-                    updateTrimButtonState();
+                    
+                    // ИСПРАВЛЕНИЕ: Автоматически выбираем клип
+                    selectClip(fullClip);
                 }
             });
 
@@ -706,7 +706,13 @@
         });
 
         playBtn.addEventListener('click', () => {
+            // ИСПРАВЛЕНИЕ: Если клип не выбран, но на таймлайне что-то есть — выбираем первый клип
+            if (!activeClipObj && timelineClips.length > 0) {
+                selectClip(timelineClips[0]);
+            }
+            
             if (!activeClipObj) return;
+
             if (mainVideo.paused) {
                 if (mainVideo.currentTime < activeClipObj.startTime || mainVideo.currentTime >= activeClipObj.endTime) {
                     mainVideo.currentTime = activeClipObj.startTime;
