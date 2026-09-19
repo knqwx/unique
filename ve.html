@@ -503,7 +503,6 @@
                     generateFramesForClip(clip, framesContainer);
                 }
 
-                // ЛКМ по клипу: переключение выбора (выбрать / снять выделение при повторном клике)
                 clipEl.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (activeClipObj === clip) {
@@ -701,22 +700,51 @@
         });
 
         function handleTimelineInteraction(e) {
-            if (!currentVideo || !activeClipObj) return;
+            if (!currentVideo || timelineClips.length === 0) return;
             const rect = timelineWrapper.getBoundingClientRect();
             const clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             
-            const start = activeClipObj.startTime;
-            const end = activeClipObj.endTime;
-            const durationSpan = end - start;
+            const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
+            const targetTime = clickPosition * totalDuration;
 
-            const newTime = start + (clickPosition * durationSpan);
-            currentVideo.currentTime = newTime;
+            // Определяем, в какой именно клип попадает абсолютное время таймлайна
+            let accumulatedTime = 0;
+            let targetClip = timelineClips[0];
+            let clipLocalOffset = 0;
+
+            for (let clip of timelineClips) {
+                const duration = clip.endTime - clip.startTime;
+                if (targetTime <= accumulatedTime + duration) {
+                    targetClip = clip;
+                    clipLocalOffset = targetTime - accumulatedTime;
+                    break;
+                }
+                accumulatedTime += duration;
+                targetClip = clip; // на случай перебора
+                clipLocalOffset = duration;
+            }
+
+            // Если клип сейчас активен в плеере — просто меняем время внутри него
+            if (activeClipObj === targetClip) {
+                const newTime = targetClip.startTime + clipLocalOffset;
+                currentVideo.currentTime = newTime;
+            } else {
+                // Если клик пришелся на другой клип, автоматически выбираем его и переключаем плеер
+                selectClip(targetClip);
+                // Даем мгновенно переключить время после загрузки
+                setTimeout(() => {
+                    if (currentVideo && activeClipObj === targetClip) {
+                        currentVideo.currentTime = targetClip.startTime + clipLocalOffset;
+                    }
+                }, 10);
+            }
+
             timelinePlayhead.style.left = `${clickPosition * 100}%`;
         }
 
         timelineWrapper.addEventListener('mousedown', (e) => {
             if (e.button === 2) { 
-                if (!currentVideo || !activeClipObj) return;
+                if (!currentVideo) return;
                 isMouseDownOnTimeline = true;
                 handleTimelineInteraction(e);
             }
