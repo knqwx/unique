@@ -402,6 +402,7 @@
         let timelineClips = [];    
         let isMouseDownOnTimeline = false;
         let globalCurrentTime = 0;
+        let isProgrammaticSeek = false; // Флаг для предотвращения ложного срабатывания timeupdate при смене клипа
 
         function updateTrimButtonState() {
             if (activeClipObj && activeClipObj.type.startsWith('video/')) {
@@ -527,9 +528,8 @@
                     generateFramesForClip(clip, framesContainer);
                 }
 
-                // Исправленный клик по клику: полностью контролирует выбор и отмену выбора
                 clipEl.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Предотвращаем всплытие, чтобы timelineWrapper не перехватывал клик
+                    e.stopPropagation();
                     if (activeClipObj === clip) {
                         deselectClip();
                     } else {
@@ -590,6 +590,7 @@
 
         function selectClip(clip) {
             activeClipObj = clip;
+            isProgrammaticSeek = true; // Блокируем автоматическое переключение во время выбора клипа
             
             const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
             clipElements.forEach(el => el.classList.remove('active-outline'));
@@ -656,7 +657,14 @@
             }
         }
 
+        // Снимаем блокировку сразу после завершения перемотки видео
+        mainVideo.addEventListener('seeked', () => {
+            isProgrammaticSeek = false;
+        });
+
         mainVideo.addEventListener('timeupdate', () => {
+            if (isProgrammaticSeek) return; // Игнорируем обновление во время ручного переключения клипов
+
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
 
             if (activeClipObj && mainVideo.currentTime >= activeClipObj.endTime) {
@@ -806,10 +814,8 @@
             updateTimeDisplay();
         }
 
-        // Изменили с mousedown на click с проверкой на правую кнопку, 
-        // чтобы не конфликтовать с выбором клипов через левую кнопку мыши
         timelineWrapper.addEventListener('mousedown', (e) => {
-            if (e.button === 2) { // Только правая кнопка мыши для перемещения плейхеда по таймлайну
+            if (e.button === 2) { 
                 isMouseDownOnTimeline = true;
                 handleTimelineInteraction(e);
             }
