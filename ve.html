@@ -349,7 +349,7 @@
     </style>
 </head>
 <body>
-    <input type="file" id="fileInput" accept="image/*,video/mp4,video/webm,video/ogg,video/quicktime,video/*" multiple>
+    <input type="file" id="fileInput" accept="image/*,video/*" multiple>
 
     <div class="sidebar">
         <button class="box upload-box" onclick="document.getElementById('fileInput').click()">Choose File</button>
@@ -423,22 +423,22 @@
                 hasItems = true;
             }
 
-            Array.from(files).forEach((file, index) => {
+            Array.from(files).forEach(file => {
                 const fileURL = URL.createObjectURL(file);
                 const clipData = {
                     file: file,
                     url: fileURL,
-                    type: file.type || (file.name.endsWith('.mov') ? 'video/quicktime' : 'video/mp4'),
+                    type: file.type,
                     startTime: 0,
                     endTime: null
                 };
-                createPreviewItem(clipData, index === 0 && !timelineClips.length);
+                createPreviewItem(clipData);
             });
             
             fileInput.value = '';
         });
 
-        function createPreviewItem(clipData, autoLoadFirst = false) {
+        function createPreviewItem(clipData) {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'preview-item';
 
@@ -448,12 +448,11 @@
                 mediaElement.src = clipData.url;
                 mediaElement.className = 'preview-media';
                 itemDiv.appendChild(mediaElement);
-            } else {
+            } else if (clipData.type.startsWith('video/')) {
                 mediaElement = document.createElement('video');
                 mediaElement.src = clipData.url;
                 mediaElement.className = 'preview-media';
-                mediaElement.preload = 'metadata';
-                mediaElement.muted = true;
+                mediaElement.currentTime = 0;
                 itemDiv.appendChild(mediaElement);
             }
 
@@ -463,44 +462,25 @@
                 document.querySelectorAll('.preview-item').forEach(el => el.classList.remove('active-outline'));
                 itemDiv.classList.add('active-outline');
 
-                loadClipDataAndSetup(clipData);
-            });
-
-            if (gridWrapper) {
-                gridWrapper.appendChild(itemDiv);
-            }
-
-            // Если это первый файл, автоматически загрузим его на таймлайн
-            if (autoLoadFirst) {
-                itemDiv.classList.add('active-outline');
-                loadClipDataAndSetup(clipData);
-            }
-        }
-
-        function loadClipDataAndSetup(clipData) {
-            if (clipData.type.startsWith('video/')) {
-                const tempVid = document.createElement('video');
-                tempVid.src = clipData.url;
-                tempVid.preload = 'metadata';
-                
-                tempVid.addEventListener('loadedmetadata', () => {
-                    const fullClip = {
-                        file: clipData.file,
-                        url: clipData.url,
-                        type: clipData.type,
-                        startTime: 0,
-                        endTime: tempVid.duration || 5
-                    };
-                    timelineClips = [fullClip];
-                    activeClipObj = null;
-                    globalCurrentTime = 0;
-                    renderTimeline();
-                    loadClipToMain(fullClip, 0);
-                    updateTrimButtonState();
-                });
-
-                // На случай если метаданные не тригерятся сразу
-                tempVid.addEventListener('error', () => {
+                if (clipData.type.startsWith('video/')) {
+                    const tempVid = document.createElement('video');
+                    tempVid.src = clipData.url;
+                    tempVid.addEventListener('loadedmetadata', () => {
+                        const fullClip = {
+                            file: clipData.file,
+                            url: clipData.url,
+                            type: clipData.type,
+                            startTime: 0,
+                            endTime: tempVid.duration
+                        };
+                        timelineClips = [fullClip];
+                        activeClipObj = null;
+                        globalCurrentTime = 0;
+                        renderTimeline();
+                        loadClipToMain(fullClip, 0);
+                        updateTrimButtonState();
+                    });
+                } else {
                     const fullClip = {
                         file: clipData.file,
                         url: clipData.url,
@@ -514,21 +494,11 @@
                     renderTimeline();
                     loadClipToMain(fullClip, 0);
                     updateTrimButtonState();
-                });
-            } else {
-                const fullClip = {
-                    file: clipData.file,
-                    url: clipData.url,
-                    type: clipData.type,
-                    startTime: 0,
-                    endTime: 5
-                };
-                timelineClips = [fullClip];
-                activeClipObj = null;
-                globalCurrentTime = 0;
-                renderTimeline();
-                loadClipToMain(fullClip, 0);
-                updateTrimButtonState();
+                }
+            });
+
+            if (gridWrapper) {
+                gridWrapper.appendChild(itemDiv);
             }
         }
 
@@ -553,6 +523,7 @@
                     const framesContainer = document.createElement('div');
                     framesContainer.className = 'timeline-frames';
                     clipEl.appendChild(framesContainer);
+
                     generateFramesForClip(clip, framesContainer);
                 }
 
@@ -686,34 +657,41 @@
         mainVideo.addEventListener('timeupdate', () => {
             if (!activeClipObj) return;
 
+            // Если дошли до конца текущего клипа
             if (mainVideo.currentTime >= activeClipObj.endTime) {
                 const currentIndex = timelineClips.indexOf(activeClipObj);
                 
+                // Если есть следующий клип на таймлайне, переключаемся на него и продолжаем играть
                 if (currentIndex !== -1 && currentIndex < timelineClips.length - 1) {
                     const nextClip = timelineClips[currentIndex + 1];
                     activeClipObj = nextClip;
                     
+                    // Обновляем визуальную рамку на таймлайне
                     document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
                     const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
                     if (clipElements[currentIndex + 1]) {
                         clipElements[currentIndex + 1].classList.add('active-outline');
                     }
 
-                    if (mainVideo.src !== nextClip.url) {
+                    // Если файл видео тот же самый, просто переводим currentTime на старт следующего клипа
+                    if (mainVideo.src === nextClip.url) {
+                        mainVideo.currentTime = nextClip.startTime;
+                    } else {
+                        // Если это другой файл, подгружаем его
                         mainVideo.src = nextClip.url;
-                    }
-                    mainVideo.currentTime = nextClip.startTime;
-                    if (mainVideo.paused) {
+                        mainVideo.currentTime = nextClip.startTime;
                         mainVideo.play();
                     }
                     updateTrimButtonState();
                 } else {
+                    // Это был самый последний клип — останавливаем воспроизведение
                     mainVideo.pause();
                     mainVideo.currentTime = activeClipObj.endTime;
                     playBtn.innerHTML = '▶';
                 }
             }
 
+            // Пересчитываем общую позицию глобального таймлайна
             let accumulated = 0;
             for (let c of timelineClips) {
                 const dur = c.endTime - c.startTime;
@@ -728,43 +706,11 @@
         });
 
         playBtn.addEventListener('click', () => {
-            if (timelineClips.length === 0) return;
-
+            if (!activeClipObj) return;
             if (mainVideo.paused) {
-                if (!activeClipObj) {
-                    let accumulatedTime = 0;
-                    let targetClip = timelineClips[0];
-                    let clipLocalOffset = 0;
-
-                    for (let clip of timelineClips) {
-                        const duration = clip.endTime - clip.startTime;
-                        if (globalCurrentTime <= accumulatedTime + duration) {
-                            targetClip = clip;
-                            clipLocalOffset = globalCurrentTime - accumulatedTime;
-                            break;
-                        }
-                        accumulatedTime += duration;
-                        targetClip = clip;
-                        clipLocalOffset = duration;
-                    }
-
-                    activeClipObj = targetClip;
-                    
-                    mainPlaceholder.style.display = 'none';
-                    mainImage.classList.remove('active');
-                    videoControls.style.display = 'flex';
-                    if (mainVideo.src !== targetClip.url) {
-                        mainVideo.src = targetClip.url;
-                    }
-                    mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
-                    mainVideo.classList.add('active');
-                    updateTrimButtonState();
-                } else {
-                    if (mainVideo.currentTime < activeClipObj.startTime || mainVideo.currentTime >= activeClipObj.endTime) {
-                        mainVideo.currentTime = activeClipObj.startTime;
-                    }
+                if (mainVideo.currentTime < activeClipObj.startTime || mainVideo.currentTime >= activeClipObj.endTime) {
+                    mainVideo.currentTime = activeClipObj.startTime;
                 }
-
                 mainVideo.play();
                 playBtn.innerHTML = '❚❚';
             } else {
@@ -842,13 +788,10 @@
                 }
                 accumulatedTime += duration;
                 targetClip = clip;
-                    clipLocalOffset = duration;
+                clipLocalOffset = duration;
             }
 
-            if (mainVideo.classList.contains('active')) {
-                if (mainVideo.src !== targetClip.url) {
-                    mainVideo.src = targetClip.url;
-                }
+            if (activeClipObj === targetClip && mainVideo.classList.contains('active')) {
                 mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
             }
 
