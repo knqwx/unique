@@ -187,6 +187,7 @@
         .main-placeholder {
             color: #8b949e;
             font-size: 16px;
+            position: absolute;
         }
 
         .media-container {
@@ -199,13 +200,20 @@
             position: relative;
             padding: 10px;
             box-sizing: border-box;
+            z-index: 2;
         }
 
+        /* Общие стили для постоянных медиа элементов (скрываем неактивные) */
         .main-media {
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
             border-radius: 4px;
+            display: none;
+        }
+
+        .main-media.active {
+            display: block;
         }
 
         .video-controls {
@@ -218,6 +226,7 @@
             gap: 15px;
             color: #ffffff;
             font-size: 14px;
+            z-index: 2;
         }
 
         .play-btn {
@@ -351,7 +360,15 @@
     </div>
 
     <div class="main-display" id="mainDisplay">
-        <span class="main-placeholder">Select an item from the list</span>
+        <span class="main-placeholder" id="mainPlaceholder">Select an item from the list</span>
+        <div class="media-container" id="mediaContainer">
+            <img id="mainImage" class="main-media" alt="">
+            <video id="mainVideo" class="main-media" playsinline></video>
+        </div>
+        <div class="video-controls" id="videoControls">
+            <button class="play-btn" id="playBtn">▶</button>
+            <span id="timeDisplay">0:00 / 0:00</span>
+        </div>
     </div>
 
     <div class="right-sidebar">
@@ -369,25 +386,23 @@
     <script>
         const fileInput = document.getElementById('fileInput');
         const previewContainer = document.getElementById('previewContainer');
-        const mainDisplay = document.getElementById('mainDisplay');
         const timelineWrapper = document.getElementById('timelineWrapper');
         const timelinePlayhead = document.getElementById('timelinePlayhead');
         const trimBtn = document.getElementById('trimBtn');
 
+        const mainPlaceholder = document.getElementById('mainPlaceholder');
+        const mainImage = document.getElementById('mainImage');
+        const mainVideo = document.getElementById('mainVideo');
+        const videoControls = document.getElementById('videoControls');
+        const playBtn = document.getElementById('playBtn');
+        const timeDisplay = document.getElementById('timeDisplay');
+
         let hasItems = false;
         let gridWrapper = null;
-        let currentVideo = null;
         let activeClipObj = null; 
         let timelineClips = [];    
         let isMouseDownOnTimeline = false;
         let globalCurrentTime = 0;
-
-        // Постоянные ссылки на элементы главного экрана, чтобы не пересоздавать их с нуля
-        let persistentMediaContainer = null;
-        let persistentMainMedia = null;
-        let persistentControls = null;
-        let persistentTimeDisplay = null;
-        let persistentPlayBtn = null;
 
         function updateTrimButtonState() {
             if (activeClipObj && activeClipObj.type.startsWith('video/')) {
@@ -604,102 +619,82 @@
             updateTrimButtonState();
         }
 
+        const formatTime = (seconds) => {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        };
+
         function loadClipToMain(clipData, startPlaybackTime = clipData.startTime) {
-            const formatTime = (seconds) => {
-                const mins = Math.floor(seconds / 60);
-                const secs = Math.floor(seconds % 60);
-                return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-            };
-
-            // Если элементы еще не создавались — создаем каркас один раз
-            if (!persistentMediaContainer) {
-                mainDisplay.innerHTML = '';
-
-                persistentMediaContainer = document.createElement('div');
-                persistentMediaContainer.className = 'media-container';
-                mainDisplay.appendChild(persistentMediaContainer);
-
-                persistentControls = document.createElement('div');
-                persistentControls.className = 'video-controls';
-
-                persistentPlayBtn = document.createElement('button');
-                persistentPlayBtn.className = 'play-btn';
-                persistentPlayBtn.innerHTML = '▶';
-                persistentControls.appendChild(persistentPlayBtn);
-
-                persistentTimeDisplay = document.createElement('span');
-                persistentTimeDisplay.textContent = '0:00 / 0:00';
-                persistentControls.appendChild(persistentTimeDisplay);
-
-                mainDisplay.appendChild(persistentControls);
-
-                persistentPlayBtn.addEventListener('click', () => {
-                    if (currentVideo) {
-                        if (currentVideo.paused) {
-                            if (currentVideo.currentTime < activeClipObj.startTime || currentVideo.currentTime >= activeClipObj.endTime) {
-                                currentVideo.currentTime = activeClipObj.startTime;
-                            }
-                            currentVideo.play();
-                            persistentPlayBtn.innerHTML = '❚❚';
-                        } else {
-                            currentVideo.pause();
-                            persistentPlayBtn.innerHTML = '▶';
-                        }
-                    }
-                });
-            }
-
-            persistentMediaContainer.innerHTML = '';
-            currentVideo = null;
+            mainPlaceholder.style.display = 'none';
 
             if (clipData.type.startsWith('image/')) {
-                persistentMainMedia = document.createElement('img');
-                persistentMainMedia.src = clipData.url;
-                persistentMainMedia.className = 'main-media';
-                persistentMediaContainer.appendChild(persistentMainMedia);
-                persistentControls.style.display = 'none';
+                mainVideo.classList.remove('active');
+                mainVideo.pause();
+                videoControls.style.display = 'none';
+
+                mainImage.src = clipData.url;
+                mainImage.classList.add('active');
             } else if (clipData.type.startsWith('video/')) {
-                persistentMainMedia = document.createElement('video');
-                persistentMainMedia.src = clipData.url;
-                persistentMainMedia.className = 'main-media';
-                persistentMediaContainer.appendChild(persistentMainMedia);
-                currentVideo = persistentMainMedia;
-                persistentControls.style.display = 'flex';
+                mainImage.classList.remove('active');
+                videoControls.style.display = 'flex';
 
-                persistentMainMedia.currentTime = startPlaybackTime;
-
-                persistentMainMedia.addEventListener('timeupdate', () => {
-                    if (persistentMainMedia.currentTime >= clipData.endTime) {
-                        persistentMainMedia.pause();
-                        persistentMainMedia.currentTime = clipData.startTime;
-                        persistentPlayBtn.innerHTML = '▶';
-                    }
-
-                    let accumulated = 0;
-                    for (let c of timelineClips) {
-                        const dur = c.endTime - c.startTime;
-                        if (c === activeClipObj) {
-                            globalCurrentTime = accumulated + (persistentMainMedia.currentTime - c.startTime);
-                            break;
-                        }
-                        accumulated += dur;
-                    }
-                    updatePlayheadPosition();
-
-                    const currentDuration = clipData.endTime - clipData.startTime;
-                    const elapsedDisplay = persistentMainMedia.currentTime - clipData.startTime;
-                    persistentTimeDisplay.textContent = `${formatTime(Math.max(0, elapsedDisplay))} / ${formatTime(currentDuration)}`;
-                });
-
-                persistentMainMedia.addEventListener('ended', () => {
-                    persistentPlayBtn.innerHTML = '▶';
-                });
+                // Меняем источник только если это другой файл
+                if (mainVideo.src !== clipData.url) {
+                    mainVideo.src = clipData.url;
+                }
+                mainVideo.currentTime = startPlaybackTime;
+                mainVideo.classList.add('active');
 
                 const currentDuration = clipData.endTime - clipData.startTime;
                 const elapsedDisplay = startPlaybackTime - clipData.startTime;
-                persistentTimeDisplay.textContent = `${formatTime(Math.max(0, elapsedDisplay))} / ${formatTime(currentDuration)}`;
+                timeDisplay.textContent = `${formatTime(Math.max(0, elapsedDisplay))} / ${formatTime(currentDuration)}`;
             }
         }
+
+        // Событие воспроизведения видео
+        mainVideo.addEventListener('timeupdate', () => {
+            if (!activeClipObj) return;
+
+            if (mainVideo.currentTime >= activeClipObj.endTime) {
+                mainVideo.pause();
+                mainVideo.currentTime = activeClipObj.startTime;
+                playBtn.innerHTML = '▶';
+            }
+
+            let accumulated = 0;
+            for (let c of timelineClips) {
+                const dur = c.endTime - c.startTime;
+                if (c === activeClipObj) {
+                    globalCurrentTime = accumulated + (mainVideo.currentTime - c.startTime);
+                    break;
+                }
+                accumulated += dur;
+            }
+            updatePlayheadPosition();
+
+            const currentDuration = activeClipObj.endTime - activeClipObj.startTime;
+            const elapsedDisplay = mainVideo.currentTime - activeClipObj.startTime;
+            timeDisplay.textContent = `${formatTime(Math.max(0, elapsedDisplay))} / ${formatTime(currentDuration)}`;
+        });
+
+        playBtn.addEventListener('click', () => {
+            if (!activeClipObj) return;
+            if (mainVideo.paused) {
+                if (mainVideo.currentTime < activeClipObj.startTime || mainVideo.currentTime >= activeClipObj.endTime) {
+                    mainVideo.currentTime = activeClipObj.startTime;
+                }
+                mainVideo.play();
+                playBtn.innerHTML = '❚❚';
+            } else {
+                mainVideo.pause();
+                playBtn.innerHTML = '▶';
+            }
+        });
+
+        mainVideo.addEventListener('ended', () => {
+            playBtn.innerHTML = '▶';
+        });
 
         function updatePlayheadPosition() {
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
@@ -712,9 +707,9 @@
         }
 
         trimBtn.addEventListener('click', () => {
-            if (!currentVideo || !activeClipObj) return;
+            if (!mainVideo || !activeClipObj) return;
 
-            const splitTime = currentVideo.currentTime;
+            const splitTime = mainVideo.currentTime;
             const start = activeClipObj.startTime;
             const end = activeClipObj.endTime;
 
@@ -769,8 +764,8 @@
                 clipLocalOffset = duration;
             }
 
-            if (currentVideo && activeClipObj === targetClip) {
-                currentVideo.currentTime = targetClip.startTime + clipLocalOffset;
+            if (activeClipObj === targetClip && mainVideo.classList.contains('active')) {
+                mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
             }
 
             updatePlayheadPosition();
