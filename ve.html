@@ -624,18 +624,27 @@
             updateTrimButtonState();
         }
 
-        // Клик по области воспроизведения медиа для выбора нужного клипа
+        // Клик по области воспроизведения медиа: выбирает клип под текущим временем или деселектит, если клик по уже активному
         mediaContainer.addEventListener('click', () => {
             if (timelineClips.length === 0) return;
 
             let accumulated = 0;
+            let targetClip = null;
             for (let clip of timelineClips) {
                 const duration = clip.endTime - clip.startTime;
                 if (globalCurrentTime >= accumulated && globalCurrentTime <= accumulated + duration) {
-                    selectClip(clip);
+                    targetClip = clip;
                     break;
                 }
                 accumulated += duration;
+            }
+
+            if (targetClip) {
+                if (activeClipObj === targetClip) {
+                    deselectClip();
+                } else {
+                    selectClip(targetClip);
+                }
             }
         });
 
@@ -732,7 +741,7 @@
         });
 
         playBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Чтобы клик по кнопке плей не триггерил клик по mediaContainer
+            e.stopPropagation();
             if (timelineClips.length === 0) return;
 
             if (mainVideo.paused) {
