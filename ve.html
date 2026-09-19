@@ -380,7 +380,7 @@
         let activeClipObj = null; 
         let timelineClips = [];    
         let isMouseDownOnTimeline = false;
-        let globalCurrentTime = 0; // Запоминаем глобальное время по всей шкале таймлайна
+        let globalCurrentTime = 0; // Сохраняет общую позицию на таймлайне
 
         function updateTrimButtonState() {
             if (activeClipObj && activeClipObj.type.startsWith('video/')) {
@@ -575,21 +575,17 @@
                 clipElements[index].classList.add('active-outline');
             }
 
-            // Вычисляем локальное время для выбранного клипа, основываясь на текущем глобальном положении линии
+            // Вычисляем точное время внутри клипа на основе глобальной позиции линии
             let accumulated = 0;
             let targetLocalTime = clip.startTime;
             for (let c of timelineClips) {
                 const dur = c.endTime - c.startTime;
-                if (globalCurrentTime >= accumulated && globalCurrentTime <= accumulated + dur) {
-                    targetLocalTime = c.startTime + (globalCurrentTime - accumulated);
+                if (c === clip) {
+                    const offsetInThisClip = Math.max(0, Math.min(dur, globalCurrentTime - accumulated));
+                    targetLocalTime = clip.startTime + offsetInThisClip;
                     break;
                 }
                 accumulated += dur;
-            }
-            // Если глобальное время оказалось вне этого клипа, ставим в начало клипа
-            if (globalCurrentTime < accumulated - (clip.endTime - clip.startTime) || globalCurrentTime > accumulated) {
-                // Оставляем как есть или сбрасываем внутрь клипа
-                targetLocalTime = clip.startTime;
             }
 
             loadClipToMain(clip, targetLocalTime);
@@ -658,7 +654,7 @@
                         playBtn.innerHTML = '▶';
                     }
 
-                    // Синхронизируем глобальное время
+                    // Синхронизируем глобальное время при воспроизведении
                     let accumulated = 0;
                     for (let c of timelineClips) {
                         const dur = c.endTime - c.startTime;
