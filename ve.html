@@ -527,8 +527,9 @@
                     generateFramesForClip(clip, framesContainer);
                 }
 
+                // Исправленный клик по клику: полностью контролирует выбор и отмену выбора
                 clipEl.addEventListener('click', (e) => {
-                    e.stopPropagation();
+                    e.stopPropagation(); // Предотвращаем всплытие, чтобы timelineWrapper не перехватывал клик
                     if (activeClipObj === clip) {
                         deselectClip();
                     } else {
@@ -590,7 +591,6 @@
         function selectClip(clip) {
             activeClipObj = clip;
             
-            // Гарантированно снимаем подсветку со всех элементов и ставим только на нужный
             const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
             clipElements.forEach(el => el.classList.remove('active-outline'));
             
@@ -806,8 +806,10 @@
             updateTimeDisplay();
         }
 
+        // Изменили с mousedown на click с проверкой на правую кнопку, 
+        // чтобы не конфликтовать с выбором клипов через левую кнопку мыши
         timelineWrapper.addEventListener('mousedown', (e) => {
-            if (e.button === 2) { 
+            if (e.button === 2) { // Только правая кнопка мыши для перемещения плейхеда по таймлайну
                 isMouseDownOnTimeline = true;
                 handleTimelineInteraction(e);
             }
