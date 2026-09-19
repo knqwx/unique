@@ -617,7 +617,6 @@
                 timeDisplay.textContent = '0:00 / 0:00';
                 controls.appendChild(timeDisplay);
 
-MainDisplay:
                 mainDisplay.appendChild(controls);
 
                 const formatTime = (seconds) => {
@@ -725,16 +724,12 @@ MainDisplay:
                 clipLocalOffset = duration;
             }
 
-            // Перенаправляем видео на нужный клип без изменения его выделения
-            if (activeClipObj !== targetClip) {
-                activeClipObj = targetClip;
-                loadClipToMain(targetClip);
-                updateTrimButtonState();
-                // Убираем подсветку выделения с таймлайна, так как клик ПКМ не должен делать клип выбранным
-                document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
+            // Перематываем видео независимо от выбранного клипа, но НЕ меняем activeClipObj и плеер
+            // Применяем перемотку только если этот клип сейчас в плеере, иначе просто двигаем визуальный ползунок по шкале
+            if (currentVideo && activeClipObj === targetClip) {
+                currentVideo.currentTime = targetClip.startTime + clipLocalOffset;
             }
 
-            currentVideo.currentTime = targetClip.startTime + clipLocalOffset;
             timelinePlayhead.style.left = `${clickPosition * 100}%`;
         }
 
