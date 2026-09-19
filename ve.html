@@ -378,7 +378,7 @@
         let gridWrapper = null;
         let currentVideo = null;
         let activeClipObj = null; 
-        let timelineClips = [];   
+        let timelineClips = [];    
         let isMouseDownOnTimeline = false;
 
         function updateTrimButtonState() {
@@ -434,7 +434,6 @@
                 itemDiv.appendChild(mediaElement);
             }
 
-            // При клике на превью просто добавляем клип на таймлайн, но НЕ выбираем его автоматически
             itemDiv.addEventListener('click', function(e) {
                 e.stopPropagation();
                 
@@ -453,9 +452,9 @@
                             endTime: tempVid.duration
                         };
                         timelineClips = [fullClip];
-                        activeClipObj = null; // Сбрасываем выбор
+                        activeClipObj = null;
                         renderTimeline();
-                        loadClipToMain(fullClip); // Просто показываем, но не делаем активным для трима/обводки
+                        loadClipToMain(fullClip);
                         updateTrimButtonState();
                     });
                 } else {
@@ -504,10 +503,14 @@
                     generateFramesForClip(clip, framesContainer);
                 }
 
-                // ЛКМ по конкретному клипу на таймлайне — теперь только тут клип становится выбранным
+                // ЛКМ по клипу: переключение выбора (выбрать / снять выделение при повторном клике)
                 clipEl.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    selectClip(clip);
+                    if (activeClipObj === clip) {
+                        deselectClip();
+                    } else {
+                        selectClip(clip);
+                    }
                 });
 
                 timelineWrapper.appendChild(clipEl);
@@ -569,6 +572,12 @@
             }
 
             loadClipToMain(clip);
+            updateTrimButtonState();
+        }
+
+        function deselectClip() {
+            activeClipObj = null;
+            document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
             updateTrimButtonState();
         }
 
