@@ -474,7 +474,7 @@
                             endTime: tempVid.duration
                         };
                         timelineClips = [fullClip];
-                        activeClipObj = null; // Сбрасываем выбор клипа, оставляя видео загруженным
+                        activeClipObj = null;
                         globalCurrentTime = 0;
                         renderTimeline();
                         loadClipToMain(fullClip, 0);
@@ -589,10 +589,12 @@
 
         function selectClip(clip) {
             activeClipObj = clip;
-            document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
+            
+            // Гарантированно снимаем подсветку со всех элементов и ставим только на нужный
+            const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
+            clipElements.forEach(el => el.classList.remove('active-outline'));
             
             const index = timelineClips.indexOf(clip);
-            const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
             if (clipElements[index]) {
                 clipElements[index].classList.add('active-outline');
             }
@@ -657,15 +659,14 @@
         mainVideo.addEventListener('timeupdate', () => {
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
 
-            // Если есть активный клип, ограничиваем воспроизведение его границами
             if (activeClipObj && mainVideo.currentTime >= activeClipObj.endTime) {
                 const currentIndex = timelineClips.indexOf(activeClipObj);
                 if (currentIndex !== -1 && currentIndex < timelineClips.length - 1) {
                     const nextClip = timelineClips[currentIndex + 1];
                     activeClipObj = nextClip;
                     
-                    document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
                     const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
+                    clipElements.forEach(el => el.classList.remove('active-outline'));
                     if (clipElements[currentIndex + 1]) {
                         clipElements[currentIndex + 1].classList.add('active-outline');
                     }
@@ -684,12 +685,10 @@
                     playBtn.innerHTML = '▶';
                 }
             } else if (!activeClipObj && mainVideo.currentTime >= totalDuration) {
-                // Если клип не выбран, играем до конца всего видео
                 mainVideo.pause();
                 playBtn.innerHTML = '▶';
             }
 
-            // Пересчет глобальной позиции таймлайна
             if (activeClipObj) {
                 let accumulated = 0;
                 for (let c of timelineClips) {
@@ -712,7 +711,6 @@
             if (timelineClips.length === 0) return;
 
             if (mainVideo.paused) {
-                // Если клип выбран, проверяем его границы, иначе просто играем с текущего момента
                 if (activeClipObj) {
                     if (mainVideo.currentTime < activeClipObj.startTime || mainVideo.currentTime >= activeClipObj.endTime) {
                         mainVideo.currentTime = activeClipObj.startTime;
