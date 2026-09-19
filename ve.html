@@ -513,7 +513,7 @@
                 clipEl.className = 'timeline-clip';
                 const clipDuration = clip.endTime - clip.startTime;
                 const widthPercent = totalDuration > 0 ? (clipDuration / totalDuration) * 100 : 100;
-                clipEl.style.width = `${widthPercent}%`;
+                clipEl.style.width = `${widthPercent%}`;
 
                 if (activeClipObj === clip) {
                     clipEl.classList.add('active-outline');
@@ -529,11 +529,9 @@
 
                 clipEl.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    // Если кликаем по уже выбранному — deselect'им
                     if (activeClipObj === clip) {
                         deselectClip();
                     } else {
-                        // Иначе выбираем новый, а старый автоматически сбрасывается
                         selectClip(clip);
                     }
                 });
@@ -646,7 +644,6 @@
                 mainImage.classList.remove('active');
                 videoControls.style.display = 'flex';
 
-                // Меняем src только если это действительно другой файл, чтобы избежать моргания и лагов
                 if (mainVideo.src !== clipData.url) {
                     mainVideo.src = clipData.url;
                 }
@@ -660,7 +657,6 @@
         mainVideo.addEventListener('timeupdate', () => {
             if (!activeClipObj) return;
 
-            // Если дошли до конца текущего клипа при воспроизведении
             if (mainVideo.currentTime >= activeClipObj.endTime) {
                 const currentIndex = timelineClips.indexOf(activeClipObj);
                 
@@ -668,14 +664,12 @@
                     const nextClip = timelineClips[currentIndex + 1];
                     activeClipObj = nextClip;
                     
-                    // Обновляем подсветку на таймлайне плавно без перерисовки всей сетки
                     document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
                     const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
                     if (clipElements[currentIndex + 1]) {
                         clipElements[currentIndex + 1].classList.add('active-outline');
                     }
 
-                    // Бесшовный переход к следующему куску без сброса плеера
                     if (mainVideo.src !== nextClip.url) {
                         mainVideo.src = nextClip.url;
                     }
@@ -704,12 +698,49 @@
             updateTimeDisplay();
         });
 
+        // Исправленная логика кнопки Play, чтобы она работала всегда при наличии видео
         playBtn.addEventListener('click', () => {
-            if (!activeClipObj) return;
+            if (timelineClips.length === 0) return;
+
+            // Если видео на паузе
             if (mainVideo.paused) {
-                if (mainVideo.currentTime < activeClipObj.startTime || mainVideo.currentTime >= activeClipObj.endTime) {
-                    mainVideo.currentTime = activeClipObj.startTime;
+                // Если клик не был выбран, но у нас есть таймлайн, определяем активный клип по текущему globalCurrentTime
+                if (!activeClipObj) {
+                    let accumulatedTime = 0;
+                    let targetClip = timelineClips[0];
+                    let clipLocalOffset = 0;
+
+                    for (let clip of timelineClips) {
+                        const duration = clip.endTime - clip.startTime;
+                        if (globalCurrentTime <= accumulatedTime + duration) {
+                            targetClip = clip;
+                            clipLocalOffset = globalCurrentTime - accumulatedTime;
+                            break;
+                        }
+                        accumulatedTime += duration;
+                        targetClip = clip;
+                        clipLocalOffset = duration;
+                    }
+
+                    activeClipObj = targetClip;
+                    
+                    // Обновляем визуальное отображение в панели плеера
+                    mainPlaceholder.style.display = 'none';
+                    mainImage.classList.remove('active');
+                    videoControls.style.display = 'flex';
+                    if (mainVideo.src !== targetClip.url) {
+                        mainVideo.src = targetClip.url;
+                    }
+                    mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
+                    mainVideo.classList.add('active');
+                    updateTrimButtonState();
+                } else {
+                    // Если клип был выбран, но время вышло за его пределы
+                    if (mainVideo.currentTime < activeClipObj.startTime || mainVideo.currentTime >= activeClipObj.endTime) {
+                        mainVideo.currentTime = activeClipObj.startTime;
+                    }
                 }
+
                 mainVideo.play();
                 playBtn.innerHTML = '❚❚';
             } else {
@@ -792,6 +823,14 @@
 
             if (activeClipObj === targetClip && mainVideo.classList.contains('active')) {
                 mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
+            } else {
+                // Если клик по таймлайну происходит, когда конкретный клип не выбран или выбран другой
+                if (mainVideo.classList.contains('active')) {
+                    if (mainVideo.src !== targetClip.url) {
+                        mainVideo.src = targetClip.url;
+                    }
+                    mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
+                }
             }
 
             updatePlayheadPosition();
