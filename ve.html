@@ -28,15 +28,16 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
-            width: 180px;
+            width: 240px;
             flex-shrink: 0;
-            height: calc(100vh - 40px);
+            /* Уменьшили высоту, чтобы освободить место снизу */
+            height: calc(100vh - 160px);
         }
 
         .right-sidebar {
             width: 240px;
             flex-shrink: 0;
-            height: calc(100vh - 40px);
+            height: calc(100vh - 160px);
             background-color: #2c3136;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
@@ -59,7 +60,7 @@
         }
 
         .upload-box {
-            height: 100px;
+            height: 80px;
             flex-shrink: 0;
             cursor: pointer;
             display: flex;
@@ -114,7 +115,7 @@
 
         .preview-item {
             width: 100%;
-            height: 55px;
+            height: 65px;
             background-color: #1a1d20;
             border-radius: 6px;
             overflow: hidden;
@@ -170,9 +171,9 @@
         }
 
         .main-display {
-            width: calc(100% - 450px);
+            width: calc(100% - 510px);
             flex-grow: 1;
-            height: calc(100vh - 215px);
+            height: calc(100vh - 160px);
             background-color: #2c3136;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
@@ -256,7 +257,7 @@
         .bottom-lines-box {
             position: fixed;
             bottom: 20px;
-            left: 215px;
+            left: 275px;
             right: 275px;
             background-color: #2c3136;
             border-radius: 8px;
