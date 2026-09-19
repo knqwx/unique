@@ -203,7 +203,6 @@
             z-index: 2;
         }
 
-        /* Общие стили для постоянных медиа элементов (скрываем неактивные) */
         .main-media {
             max-width: 100%;
             max-height: 100%;
@@ -541,6 +540,7 @@
             });
 
             updatePlayheadPosition();
+            updateTimeDisplay(); // Обновляем общий таймер при изменении таймлайна (например, после trim)
         }
 
         function generateFramesForClip(clip, framesContainer) {
@@ -625,6 +625,11 @@
             return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
         };
 
+        function updateTimeDisplay() {
+            const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
+            timeDisplay.textContent = `${formatTime(globalCurrentTime)} / ${formatTime(totalDuration)}`;
+        }
+
         function loadClipToMain(clipData, startPlaybackTime = clipData.startTime) {
             mainPlaceholder.style.display = 'none';
 
@@ -639,20 +644,16 @@
                 mainImage.classList.remove('active');
                 videoControls.style.display = 'flex';
 
-                // Меняем источник только если это другой файл
                 if (mainVideo.src !== clipData.url) {
                     mainVideo.src = clipData.url;
                 }
                 mainVideo.currentTime = startPlaybackTime;
                 mainVideo.classList.add('active');
 
-                const currentDuration = clipData.endTime - clipData.startTime;
-                const elapsedDisplay = startPlaybackTime - clipData.startTime;
-                timeDisplay.textContent = `${formatTime(Math.max(0, elapsedDisplay))} / ${formatTime(currentDuration)}`;
+                updateTimeDisplay();
             }
         }
 
-        // Событие воспроизведения видео
         mainVideo.addEventListener('timeupdate', () => {
             if (!activeClipObj) return;
 
@@ -672,10 +673,7 @@
                 accumulated += dur;
             }
             updatePlayheadPosition();
-
-            const currentDuration = activeClipObj.endTime - activeClipObj.startTime;
-            const elapsedDisplay = mainVideo.currentTime - activeClipObj.startTime;
-            timeDisplay.textContent = `${formatTime(Math.max(0, elapsedDisplay))} / ${formatTime(currentDuration)}`;
+            updateTimeDisplay();
         });
 
         playBtn.addEventListener('click', () => {
@@ -769,6 +767,7 @@
             }
 
             updatePlayheadPosition();
+            updateTimeDisplay();
         }
 
         timelineWrapper.addEventListener('mousedown', (e) => {
