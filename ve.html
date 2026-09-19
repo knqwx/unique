@@ -540,7 +540,7 @@
             });
 
             updatePlayheadPosition();
-            updateTimeDisplay(); // Обновляем общий таймер при изменении таймлайна (например, после trim)
+            updateTimeDisplay();
         }
 
         function generateFramesForClip(clip, framesContainer) {
@@ -657,12 +657,41 @@
         mainVideo.addEventListener('timeupdate', () => {
             if (!activeClipObj) return;
 
+            // Если дошли до конца текущего клипа
             if (mainVideo.currentTime >= activeClipObj.endTime) {
-                mainVideo.pause();
-                mainVideo.currentTime = activeClipObj.startTime;
-                playBtn.innerHTML = '▶';
+                const currentIndex = timelineClips.indexOf(activeClipObj);
+                
+                // Если есть следующий клип на таймлайне, переключаемся на него и продолжаем играть
+                if (currentIndex !== -1 && currentIndex < timelineClips.length - 1) {
+                    const nextClip = timelineClips[currentIndex + 1];
+                    activeClipObj = nextClip;
+                    
+                    // Обновляем визуальную рамку на таймлайне
+                    document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
+                    const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
+                    if (clipElements[currentIndex + 1]) {
+                        clipElements[currentIndex + 1].classList.add('active-outline');
+                    }
+
+                    // Если файл видео тот же самый, просто переводим currentTime на старт следующего клипа
+                    if (mainVideo.src === nextClip.url) {
+                        mainVideo.currentTime = nextClip.startTime;
+                    } else {
+                        // Если это другой файл, подгружаем его
+                        mainVideo.src = nextClip.url;
+                        mainVideo.currentTime = nextClip.startTime;
+                        mainVideo.play();
+                    }
+                    updateTrimButtonState();
+                } else {
+                    // Это был самый последний клип — останавливаем воспроизведение
+                    mainVideo.pause();
+                    mainVideo.currentTime = activeClipObj.endTime;
+                    playBtn.innerHTML = '▶';
+                }
             }
 
+            // Пересчитываем общую позицию глобального таймлайна
             let accumulated = 0;
             for (let c of timelineClips) {
                 const dur = c.endTime - c.startTime;
