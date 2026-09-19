@@ -402,7 +402,7 @@
         let timelineClips = [];    
         let isMouseDownOnTimeline = false;
         let globalCurrentTime = 0;
-        let isProgrammaticSeek = false; // Флаг для предотвращения ложного срабатывания timeupdate при смене клипа
+        let isProgrammaticSeek = false;
 
         function updateTrimButtonState() {
             if (activeClipObj && activeClipObj.type.startsWith('video/')) {
@@ -590,7 +590,7 @@
 
         function selectClip(clip) {
             activeClipObj = clip;
-            isProgrammaticSeek = true; // Блокируем автоматическое переключение во время выбора клипа
+            isProgrammaticSeek = true;
             
             const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
             clipElements.forEach(el => el.classList.remove('active-outline'));
@@ -657,13 +657,12 @@
             }
         }
 
-        // Снимаем блокировку сразу после завершения перемотки видео
         mainVideo.addEventListener('seeked', () => {
             isProgrammaticSeek = false;
         });
 
         mainVideo.addEventListener('timeupdate', () => {
-            if (isProgrammaticSeek) return; // Игнорируем обновление во время ручного переключения клипов
+            if (isProgrammaticSeek) return;
 
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
 
@@ -804,10 +803,26 @@
                 clipLocalOffset = duration;
             }
 
-            if (activeClipObj === targetClip && mainVideo.classList.contains('active')) {
-                mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
-            } else if (!activeClipObj && mainVideo.classList.contains('active')) {
-                mainVideo.currentTime = globalCurrentTime;
+            if (mainVideo.classList.contains('active')) {
+                isProgrammaticSeek = true;
+                if (activeClipObj !== targetClip) {
+                    activeClipObj = targetClip;
+                    
+                    const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
+                    clipElements.forEach(el => el.classList.remove('active-outline'));
+                    const index = timelineClips.indexOf(targetClip);
+                    if (clipElements[index]) {
+                        clipElements[index].classList.add('active-outline');
+                    }
+                    
+                    if (mainVideo.src !== targetClip.url) {
+                        mainVideo.src = targetClip.url;
+                    }
+                    mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
+                    updateTrimButtonState();
+                } else {
+                    mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
+                }
             }
 
             updatePlayheadPosition();
