@@ -474,11 +474,11 @@
                             endTime: tempVid.duration
                         };
                         timelineClips = [fullClip];
+                        activeClipObj = null; // Сбрасываем выбор клипа, оставляя видео загруженным
                         globalCurrentTime = 0;
                         renderTimeline();
-                        
-                        // ИСПРАВЛЕНИЕ: Автоматически выбираем клип
-                        selectClip(fullClip);
+                        loadClipToMain(fullClip, 0);
+                        updateTrimButtonState();
                     });
                 } else {
                     const fullClip = {
@@ -489,11 +489,11 @@
                         endTime: 5
                     };
                     timelineClips = [fullClip];
+                    activeClipObj = null;
                     globalCurrentTime = 0;
                     renderTimeline();
-                    
-                    // ИСПРАВЛЕНИЕ: Автоматически выбираем клип
-                    selectClip(fullClip);
+                    loadClipToMain(fullClip, 0);
+                    updateTrimButtonState();
                 }
             });
 
@@ -655,67 +655,68 @@
         }
 
         mainVideo.addEventListener('timeupdate', () => {
-            if (!activeClipObj) return;
+            const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
 
-            // Если дошли до конца текущего клипа
-            if (mainVideo.currentTime >= activeClipObj.endTime) {
+            // Если есть активный клип, ограничиваем воспроизведение его границами
+            if (activeClipObj && mainVideo.currentTime >= activeClipObj.endTime) {
                 const currentIndex = timelineClips.indexOf(activeClipObj);
-                
-                // Если есть следующий клип на таймлайне, переключаемся на него и продолжаем играть
                 if (currentIndex !== -1 && currentIndex < timelineClips.length - 1) {
                     const nextClip = timelineClips[currentIndex + 1];
                     activeClipObj = nextClip;
                     
-                    // Обновляем визуальную рамку на таймлайне
                     document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
                     const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
                     if (clipElements[currentIndex + 1]) {
                         clipElements[currentIndex + 1].classList.add('active-outline');
                     }
 
-                    // Если файл видео тот же самый, просто переводим currentTime на старт следующего клипа
                     if (mainVideo.src === nextClip.url) {
                         mainVideo.currentTime = nextClip.startTime;
                     } else {
-                        // Если это другой файл, подгружаем его
                         mainVideo.src = nextClip.url;
                         mainVideo.currentTime = nextClip.startTime;
                         mainVideo.play();
                     }
                     updateTrimButtonState();
                 } else {
-                    // Это был самый последний клип — останавливаем воспроизведение
                     mainVideo.pause();
                     mainVideo.currentTime = activeClipObj.endTime;
                     playBtn.innerHTML = '▶';
                 }
+            } else if (!activeClipObj && mainVideo.currentTime >= totalDuration) {
+                // Если клип не выбран, играем до конца всего видео
+                mainVideo.pause();
+                playBtn.innerHTML = '▶';
             }
 
-            // Пересчитываем общую позицию глобального таймлайна
-            let accumulated = 0;
-            for (let c of timelineClips) {
-                const dur = c.endTime - c.startTime;
-                if (c === activeClipObj) {
-                    globalCurrentTime = accumulated + (mainVideo.currentTime - c.startTime);
-                    break;
+            // Пересчет глобальной позиции таймлайна
+            if (activeClipObj) {
+                let accumulated = 0;
+                for (let c of timelineClips) {
+                    const dur = c.endTime - c.startTime;
+                    if (c === activeClipObj) {
+                        globalCurrentTime = accumulated + (mainVideo.currentTime - c.startTime);
+                        break;
+                    }
+                    accumulated += dur;
                 }
-                accumulated += dur;
+            } else {
+                globalCurrentTime = mainVideo.currentTime;
             }
+
             updatePlayheadPosition();
             updateTimeDisplay();
         });
 
         playBtn.addEventListener('click', () => {
-            // ИСПРАВЛЕНИЕ: Если клип не выбран, но на таймлайне что-то есть — выбираем первый клип
-            if (!activeClipObj && timelineClips.length > 0) {
-                selectClip(timelineClips[0]);
-            }
-            
-            if (!activeClipObj) return;
+            if (timelineClips.length === 0) return;
 
             if (mainVideo.paused) {
-                if (mainVideo.currentTime < activeClipObj.startTime || mainVideo.currentTime >= activeClipObj.endTime) {
-                    mainVideo.currentTime = activeClipObj.startTime;
+                // Если клип выбран, проверяем его границы, иначе просто играем с текущего момента
+                if (activeClipObj) {
+                    if (mainVideo.currentTime < activeClipObj.startTime || mainVideo.currentTime >= activeClipObj.endTime) {
+                        mainVideo.currentTime = activeClipObj.startTime;
+                    }
                 }
                 mainVideo.play();
                 playBtn.innerHTML = '❚❚';
@@ -799,6 +800,8 @@
 
             if (activeClipObj === targetClip && mainVideo.classList.contains('active')) {
                 mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
+            } else if (!activeClipObj && mainVideo.classList.contains('active')) {
+                mainVideo.currentTime = globalCurrentTime;
             }
 
             updatePlayheadPosition();
