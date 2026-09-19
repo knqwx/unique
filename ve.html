@@ -503,6 +503,7 @@
                     generateFramesForClip(clip, framesContainer);
                 }
 
+                // ЛКМ по клипу: переключение выбора (выбрать / снять выделение при повторном клике)
                 clipEl.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (activeClipObj === clip) {
@@ -616,6 +617,7 @@
                 timeDisplay.textContent = '0:00 / 0:00';
                 controls.appendChild(timeDisplay);
 
+MainDisplay:
                 mainDisplay.appendChild(controls);
 
                 const formatTime = (seconds) => {
@@ -707,7 +709,6 @@
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
             const targetTime = clickPosition * totalDuration;
 
-            // Определяем, в какой именно клип попадает абсолютное время таймлайна
             let accumulatedTime = 0;
             let targetClip = timelineClips[0];
             let clipLocalOffset = 0;
@@ -720,25 +721,20 @@
                     break;
                 }
                 accumulatedTime += duration;
-                targetClip = clip; // на случай перебора
+                targetClip = clip;
                 clipLocalOffset = duration;
             }
 
-            // Если клип сейчас активен в плеере — просто меняем время внутри него
-            if (activeClipObj === targetClip) {
-                const newTime = targetClip.startTime + clipLocalOffset;
-                currentVideo.currentTime = newTime;
-            } else {
-                // Если клик пришелся на другой клип, автоматически выбираем его и переключаем плеер
-                selectClip(targetClip);
-                // Даем мгновенно переключить время после загрузки
-                setTimeout(() => {
-                    if (currentVideo && activeClipObj === targetClip) {
-                        currentVideo.currentTime = targetClip.startTime + clipLocalOffset;
-                    }
-                }, 10);
+            // Перенаправляем видео на нужный клип без изменения его выделения
+            if (activeClipObj !== targetClip) {
+                activeClipObj = targetClip;
+                loadClipToMain(targetClip);
+                updateTrimButtonState();
+                // Убираем подсветку выделения с таймлайна, так как клик ПКМ не должен делать клип выбранным
+                document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
             }
 
+            currentVideo.currentTime = targetClip.startTime + clipLocalOffset;
             timelinePlayhead.style.left = `${clickPosition * 100}%`;
         }
 
