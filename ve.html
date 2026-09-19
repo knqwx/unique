@@ -803,26 +803,14 @@
                 clipLocalOffset = duration;
             }
 
+            // Обновляем отображение кадра в плеере для целевого клипа, 
+            // но НЕ меняем activeClipObj (активным остается тот, что был выбран)
             if (mainVideo.classList.contains('active')) {
                 isProgrammaticSeek = true;
-                if (activeClipObj !== targetClip) {
-                    activeClipObj = targetClip;
-                    
-                    const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
-                    clipElements.forEach(el => el.classList.remove('active-outline'));
-                    const index = timelineClips.indexOf(targetClip);
-                    if (clipElements[index]) {
-                        clipElements[index].classList.add('active-outline');
-                    }
-                    
-                    if (mainVideo.src !== targetClip.url) {
-                        mainVideo.src = targetClip.url;
-                    }
-                    mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
-                    updateTrimButtonState();
-                } else {
-                    mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
+                if (mainVideo.src !== targetClip.url) {
+                    mainVideo.src = targetClip.url;
                 }
+                mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
             }
 
             updatePlayheadPosition();
