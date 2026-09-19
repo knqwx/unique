@@ -74,6 +74,23 @@
             background-color: #343a40;
         }
 
+        .settings-box {
+            height: 45px;
+            flex-shrink: 0;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            font-weight: 500;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .settings-box:hover {
+            background-color: #343a40;
+        }
+
         .preview-box {
             flex-grow: 1;
             display: flex;
@@ -172,7 +189,7 @@
         .main-display {
             width: calc(100% - 510px);
             flex-grow: 1;
-            height: calc(100vh - 215px);
+            height: calc(100vh - 135px);
             background-color: #2c3136;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
@@ -357,6 +374,7 @@
         <div class="box preview-box" id="previewContainer">
             <span class="placeholder-text">Preview</span>
         </div>
+        <button class="box settings-box" id="settingsBtn">&#9881; Settings</button>
     </div>
 
     <div class="main-display" id="mainDisplay">
