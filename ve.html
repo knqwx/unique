@@ -201,6 +201,7 @@
             padding: 10px;
             box-sizing: border-box;
             z-index: 2;
+            cursor: pointer;
         }
 
         .main-media {
@@ -365,13 +366,13 @@
             <video id="mainVideo" class="main-media" playsinline></video>
         </div>
         <div class="video-controls" id="videoControls">
-            <button class="play-btn" id="playBtn">▶</button>
+            <button class="play-btn" id="playBtn">&#9658;</button>
             <span id="timeDisplay">0:00 / 0:00</span>
         </div>
     </div>
 
     <div class="right-sidebar">
-        <button class="trim-btn" id="trimBtn" disabled>✂ Trim</button>
+        <button class="trim-btn" id="trimBtn" disabled>&#9986; Trim</button>
     </div>
 
     <div class="bottom-lines-box">
@@ -388,6 +389,7 @@
         const timelineWrapper = document.getElementById('timelineWrapper');
         const timelinePlayhead = document.getElementById('timelinePlayhead');
         const trimBtn = document.getElementById('trimBtn');
+        const mediaContainer = document.getElementById('mediaContainer');
 
         const mainPlaceholder = document.getElementById('mainPlaceholder');
         const mainImage = document.getElementById('mainImage');
@@ -622,6 +624,21 @@
             updateTrimButtonState();
         }
 
+        // Клик по области воспроизведения медиа для выбора нужного клипа
+        mediaContainer.addEventListener('click', () => {
+            if (timelineClips.length === 0) return;
+
+            let accumulated = 0;
+            for (let clip of timelineClips) {
+                const duration = clip.endTime - clip.startTime;
+                if (globalCurrentTime >= accumulated && globalCurrentTime <= accumulated + duration) {
+                    selectClip(clip);
+                    break;
+                }
+                accumulated += duration;
+            }
+        });
+
         const formatTime = (seconds) => {
             const mins = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
@@ -689,11 +706,11 @@
                 } else {
                     mainVideo.pause();
                     mainVideo.currentTime = activeClipObj.endTime;
-                    playBtn.innerHTML = '▶';
+                    playBtn.innerHTML = '&#9658;';
                 }
             } else if (!activeClipObj && mainVideo.currentTime >= totalDuration) {
                 mainVideo.pause();
-                playBtn.innerHTML = '▶';
+                playBtn.innerHTML = '&#9658;';
             }
 
             if (activeClipObj) {
@@ -714,7 +731,8 @@
             updateTimeDisplay();
         });
 
-        playBtn.addEventListener('click', () => {
+        playBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Чтобы клик по кнопке плей не триггерил клик по mediaContainer
             if (timelineClips.length === 0) return;
 
             if (mainVideo.paused) {
@@ -724,15 +742,15 @@
                     }
                 }
                 mainVideo.play();
-                playBtn.innerHTML = '❚❚';
+                playBtn.innerHTML = '&#10074;&#10074;';
             } else {
                 mainVideo.pause();
-                playBtn.innerHTML = '▶';
+                playBtn.innerHTML = '&#9658;';
             }
         });
 
         mainVideo.addEventListener('ended', () => {
-            playBtn.innerHTML = '▶';
+            playBtn.innerHTML = '&#9658;';
         });
 
         function updatePlayheadPosition() {
@@ -803,14 +821,26 @@
                 clipLocalOffset = duration;
             }
 
-            // Обновляем отображение кадра в плеере для целевого клипа, 
-            // но НЕ меняем activeClipObj (активным остается тот, что был выбран)
             if (mainVideo.classList.contains('active')) {
                 isProgrammaticSeek = true;
-                if (mainVideo.src !== targetClip.url) {
-                    mainVideo.src = targetClip.url;
+                if (activeClipObj !== targetClip) {
+                    activeClipObj = targetClip;
+                    
+                    const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
+                    clipElements.forEach(el => el.classList.remove('active-outline'));
+                    const index = timelineClips.indexOf(targetClip);
+                    if (clipElements[index]) {
+                        clipElements[index].classList.add('active-outline');
+                    }
+                    
+                    if (mainVideo.src !== targetClip.url) {
+                        mainVideo.src = targetClip.url;
+                    }
+                    mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
+                    updateTrimButtonState();
+                } else {
+                    mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
                 }
-                mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
             }
 
             updatePlayheadPosition();
