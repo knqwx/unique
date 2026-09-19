@@ -529,9 +529,11 @@
 
                 clipEl.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    // Если кликаем по уже выбранному — deselect'им
                     if (activeClipObj === clip) {
                         deselectClip();
                     } else {
+                        // Иначе выбираем новый, а старый автоматически сбрасывается
                         selectClip(clip);
                     }
                 });
@@ -644,6 +646,7 @@
                 mainImage.classList.remove('active');
                 videoControls.style.display = 'flex';
 
+                // Меняем src только если это действительно другой файл, чтобы избежать моргания и лагов
                 if (mainVideo.src !== clipData.url) {
                     mainVideo.src = clipData.url;
                 }
@@ -657,41 +660,37 @@
         mainVideo.addEventListener('timeupdate', () => {
             if (!activeClipObj) return;
 
-            // Если дошли до конца текущего клипа
+            // Если дошли до конца текущего клипа при воспроизведении
             if (mainVideo.currentTime >= activeClipObj.endTime) {
                 const currentIndex = timelineClips.indexOf(activeClipObj);
                 
-                // Если есть следующий клип на таймлайне, переключаемся на него и продолжаем играть
                 if (currentIndex !== -1 && currentIndex < timelineClips.length - 1) {
                     const nextClip = timelineClips[currentIndex + 1];
                     activeClipObj = nextClip;
                     
-                    // Обновляем визуальную рамку на таймлайне
+                    // Обновляем подсветку на таймлайне плавно без перерисовки всей сетки
                     document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
                     const clipElements = timelineWrapper.querySelectorAll('.timeline-clip');
                     if (clipElements[currentIndex + 1]) {
                         clipElements[currentIndex + 1].classList.add('active-outline');
                     }
 
-                    // Если файл видео тот же самый, просто переводим currentTime на старт следующего клипа
-                    if (mainVideo.src === nextClip.url) {
-                        mainVideo.currentTime = nextClip.startTime;
-                    } else {
-                        // Если это другой файл, подгружаем его
+                    // Бесшовный переход к следующему куску без сброса плеера
+                    if (mainVideo.src !== nextClip.url) {
                         mainVideo.src = nextClip.url;
-                        mainVideo.currentTime = nextClip.startTime;
+                    }
+                    mainVideo.currentTime = nextClip.startTime;
+                    if (mainVideo.paused) {
                         mainVideo.play();
                     }
                     updateTrimButtonState();
                 } else {
-                    // Это был самый последний клип — останавливаем воспроизведение
                     mainVideo.pause();
                     mainVideo.currentTime = activeClipObj.endTime;
                     playBtn.innerHTML = '▶';
                 }
             }
 
-            // Пересчитываем общую позицию глобального таймлайна
             let accumulated = 0;
             for (let c of timelineClips) {
                 const dur = c.endTime - c.startTime;
