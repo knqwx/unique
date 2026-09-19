@@ -30,13 +30,13 @@
             gap: 15px;
             width: 240px;
             flex-shrink: 0;
-            height: calc(100vh - 40px);
+            height: calc(100vh - 135px);
         }
 
         .right-sidebar {
             width: 240px;
             flex-shrink: 0;
-            height: calc(100vh - 40px);
+            height: calc(100vh - 135px);
             background-color: #2c3136;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
@@ -624,7 +624,6 @@
             updateTrimButtonState();
         }
 
-        // Клик по области воспроизведения медиа: выбирает клип под текущим временем или деселектит, если клик по уже активному
         mediaContainer.addEventListener('click', () => {
             if (timelineClips.length === 0) return;
 
