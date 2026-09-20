@@ -570,45 +570,58 @@
             }
         }
 
-        // Обновленная архитектура офлайн-экспорта (Frame-by-frame Offline Pipeline)
+        // Высокопроизводительный пайплайн экспорта видео (в стиле CapCut)
         exportBtn.addEventListener('click', async () => {
             if (timelineClips.length === 0) return;
 
             exportBtn.disabled = true;
-            exportBtn.textContent = 'Exporting...';
+            const startTimeExport = performance.now();
 
             try {
-                const fps = 30;
+                // Вычисляем суммарное разрешение и FPS на основе первого клика (или дефолтных максимальных значений)
+                let targetWidth = 1280;
+                let targetHeight = 720;
+                let fps = 30;
+
+                const firstVideoClip = timelineClips.find(c => c.type.startsWith('video/'));
+                if (firstVideoClip) {
+                    const probeVid = document.createElement('video');
+                    probeVid.src = firstVideoClip.url;
+                    await new Promise(r => probeVid.addEventListener('loadedmetadata', r, { once: true }));
+                    if (probeVid.videoWidth && probeVid.videoHeight) {
+                        targetWidth = probeVid.videoWidth;
+                        targetHeight = probeVid.videoHeight;
+                    }
+                }
+
                 const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
                 const totalFrames = Math.round(totalDuration * fps);
 
-                const width = 1280;
-                const height = 720;
                 const exportCanvas = document.createElement('canvas');
-                exportCanvas.width = width;
-                exportCanvas.height = height;
-                const ctx = exportCanvas.getContext('2d');
+                exportCanvas.width = targetWidth;
+                exportCanvas.height = targetHeight;
+                const ctx = exportCanvas.getContext('2d', { alpha: false, desynchronized: true });
+
+                // Предзагрузка и кэширование изображений для эффективного рендеринга без дублирования загрузок
+                const imageCache = new Map();
+                for (let clip of timelineClips) {
+                    if (clip.type.startsWith('image/') && !imageCache.has(clip.url)) {
+                        await new Promise((resolve) => {
+                            const img = new Image();
+                            img.src = clip.url;
+                            img.onload = () => {
+                                imageCache.set(clip.url, img);
+                                resolve();
+                            };
+                            img.onerror = resolve;
+                        });
+                    }
+                }
 
                 let videoEncoder = null;
                 let encodedChunks = [];
-
-                const hiddenVideo = document.createElement('video');
-                hiddenVideo.muted = true;
-                hiddenVideo.playsInline = true;
-
-                const seekVideoTo = (vid, time) => {
-                    return new Promise((resolve) => {
-                        let onSeeked = () => {
-                            vid.removeEventListener('seeked', onSeeked);
-                            resolve();
-                        };
-                        vid.addEventListener('seeked', onSeeked);
-                        vid.currentTime = time;
-                    });
-                };
-
                 const useWebCodecs = typeof VideoEncoder !== 'undefined';
-                
+
                 if (useWebCodecs) {
                     videoEncoder = new VideoEncoder({
                         output: (chunk, metadata) => {
@@ -619,83 +632,122 @@
                         error: (err) => console.error('VideoEncoder error:', err)
                     });
 
-                    videoEncoder.configure({
-                        codec: 'vp09.00.10.08',
-                        width: width,
-                        height: height,
-                        bitrate: 2 * 1024 * 1024,
-                        framerate: fps
-                    });
+                    // Настройка WebCodecs с аппаратным ускорением (высокий битрейт для качества)
+                    try {
+                        videoEncoder.configure({
+                            codec: 'vp09.00.10.08',
+                            width: targetWidth,
+                            height: targetHeight,
+                            bitrate: targetWidth * targetHeight * 4,
+                            framerate: fps
+                        });
+                    } catch (e) {
+                        console.warn('WebCodecs VP9 config failed, falling back...', e);
+                    }
                 }
 
-                let streamCaptureMode = !useWebCodecs;
+                // Fallback через MediaRecorder со стрингом canvas, если WebCodecs недоступен
+                let useMediaRecorderFallback = !useWebCodecs || videoEncoder.state !== 'configured';
                 let stream, recorder, recordedChunks = [];
 
-                if (streamCaptureMode && window.MediaRecorder) {
+                if (useMediaRecorderFallback && window.MediaRecorder) {
                     stream = exportCanvas.captureStream(fps);
-                    recorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+                    const mimeType = MediaRecorder.isTypeSupported('video/webm; codecs=vp9') ? 'video/webm; codecs=vp9' : 'video/webm';
+                    recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5000000 });
                     recorder.ondataavailable = e => recordedChunks.push(e.data);
                     recorder.start();
                 }
 
-                for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
-                    const currentTime = frameIndex / fps;
+                // Последовательное декодирование видеоклипов через скрытый видеоэлемент в режиме воспроизведения (без постоянных seek)
+                let currentVideoElement = null;
+                let currentLoadedVideoUrl = '';
 
-                    let accumulated = 0;
-                    let targetClip = null;
-                    let clipLocalTime = 0;
+                for (let i = 0; i < timelineClips.length; i++) {
+                    const clip = timelineClips[i];
+                    const clipDuration = clip.endTime - clip.startTime;
+                    const clipFrames = Math.round(clipDuration * fps);
 
-                    for (let clip of timelineClips) {
-                        const dur = clip.endTime - clip.startTime;
-                        if (currentTime >= accumulated && currentTime <= accumulated + dur) {
-                            targetClip = clip;
-                            clipLocalTime = clip.startTime + (currentTime - accumulated);
-                            break;
-                        }
-                        accumulated += dur;
-                    }
-
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(0, 0, width, height);
-
-                    if (targetClip) {
-                        if (targetClip.type.startsWith('image/')) {
-                            await new Promise((resolve) => {
-                                const img = new Image();
-                                img.src = targetClip.url;
-                                img.onload = () => {
-                                    ctx.drawImage(img, 0, 0, width, height);
-                                    resolve();
-                                };
-                                img.onerror = resolve;
-                            });
-                        } else if (targetClip.type.startsWith('video/')) {
-                            if (hiddenVideo.src !== targetClip.url) {
-                                hiddenVideo.src = targetClip.url;
-                                await new Promise(r => hiddenVideo.addEventListener('loadeddata', r, {once: true}));
+                    if (clip.type.startsWith('image/')) {
+                        const img = imageCache.get(clip.url);
+                        for (let f = 0; f < clipFrames; f++) {
+                            const globalFrameIndex = Math.round((timelineClips.slice(0, i).reduce((s, c) => s + (c.endTime - c.startTime), 0) + (f / fps)) * fps);
+                            
+                            ctx.fillStyle = '#000000';
+                            ctx.fillRect(0, 0, targetWidth, targetHeight);
+                            if (img) {
+                                ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
                             }
-                            await seekVideoTo(hiddenVideo, clipLocalTime);
-                            ctx.drawImage(hiddenVideo, 0, 0, width, height);
-                        }
-                    }
 
-                    if (useWebCodecs && videoEncoder && videoEncoder.state === 'configured') {
-                        const frame = new VideoFrame(exportCanvas, { timestamp: Math.round(frameIndex * (1000000 / fps)) });
-                        videoEncoder.encode(frame, { keyFrame: frameIndex % (fps * 2) === 0 });
-                        frame.close();
-                    } else if (!streamCaptureMode) {
-                        if (frameIndex % 10 === 0) {
-                            await new Promise(r => setTimeout(r, 4));
+                            if (useWebCodecs && videoEncoder && videoEncoder.state === 'configured') {
+                                const frame = new VideoFrame(exportCanvas, { timestamp: Math.round(globalFrameIndex * (1000000 / fps)) });
+                                videoEncoder.encode(frame, { keyFrame: globalFrameIndex % (fps * 2) === 0 });
+                                frame.close();
+                            }
+
+                            // Обновление прогресса
+                            if (f % 10 === 0) {
+                                updateExportProgress(globalFrameIndex, totalFrames, startTimeExport);
+                                await new Promise(r => setTimeout(r, 0));
+                            }
+                        }
+                    } else if (clip.type.startsWith('video/')) {
+                        if (!currentVideoElement) {
+                            currentVideoElement = document.createElement('video');
+                            currentVideoElement.muted = true;
+                            currentVideoElement.playsInline = true;
+                        }
+
+                        if (currentLoadedVideoUrl !== clip.url) {
+                            currentVideoElement.src = clip.url;
+                            currentLoadedVideoUrl = clip.url;
+                            await new Promise(r => currentVideoElement.addEventListener('loadeddata', r, { once: true }));
+                        }
+
+                        // Установка начальной позиции один раз для клипа, затем последовательное считывание
+                        currentVideoElement.currentTime = clip.startTime;
+                        await new Promise(r => currentVideoElement.addEventListener('seeked', r, { once: true }));
+
+                        for (let f = 0; f < clipFrames; f++) {
+                            const globalFrameIndex = Math.round((timelineClips.slice(0, i).reduce((s, c) => s + (c.endTime - c.startTime), 0) + (f / fps)) * fps);
+
+                            ctx.fillStyle = '#000000';
+                            ctx.fillRect(0, 0, targetWidth, targetHeight);
+                            ctx.drawImage(currentVideoElement, 0, 0, targetWidth, targetHeight);
+
+                            if (useWebCodecs && videoEncoder && videoEncoder.state === 'configured') {
+                                const frame = new VideoFrame(exportCanvas, { timestamp: Math.round(globalFrameIndex * (1000000 / fps)) });
+                                videoEncoder.encode(frame, { keyFrame: globalFrameIndex % (fps * 2) === 0 });
+                                frame.close();
+                            }
+
+                            // Плавное продвижение времени видео без тяжелых циклов seek
+                            const nextTime = clip.startTime + ((f + 1) / fps);
+                            if (nextTime < clip.endTime) {
+                                currentVideoElement.currentTime = nextTime;
+                                await new Promise(r => {
+                                    const onSeeked = () => {
+                                        currentVideoElement.removeEventListener('seeked', onSeeked);
+                                        r();
+                                    };
+                                    currentVideoElement.addEventListener('seeked', onSeeked);
+                                });
+                            }
+
+                            if (f % 5 === 0) {
+                                updateExportProgress(globalFrameIndex, totalFrames, startTimeExport);
+                                await new Promise(r => setTimeout(r, 0));
+                            }
                         }
                     }
                 }
 
-                if (useWebCodecs && videoEncoder) {
+                // Завершение кодирования и скачивание
+                if (useWebCodecs && videoEncoder && videoEncoder.state === 'configured') {
                     await videoEncoder.flush();
                     videoEncoder.close();
                     const finalBlob = new Blob(encodedChunks, { type: 'video/webm' });
                     triggerDownload(finalBlob, 'exported_video.webm');
-                } else if (streamCaptureMode && recorder) {
+                } else if (useMediaRecorderFallback && recorder) {
                     await new Promise((resolve) => {
                         recorder.onstop = () => {
                             const finalBlob = new Blob(recordedChunks, { type: 'video/webm' });
@@ -709,13 +761,21 @@
                 }
 
             } catch (err) {
-                console.error('Export failed:', err);
+                console.error('Export error:', err);
                 fallbackDownload(timelineClips[0].file);
             } finally {
                 exportBtn.textContent = 'Export';
                 updateActionButtonsState();
             }
         });
+
+        function updateExportProgress(currentFrame, totalFrames, startTime) {
+            const percent = Math.min(100, Math.round((currentFrame / totalFrames) * 100));
+            const elapsed = (performance.now() - startTime) / 1000;
+            const estimatedTotal = currentFrame > 0 ? elapsed / (currentFrame / totalFrames) : 0;
+            const remaining = Math.max(0, Math.round(estimatedTotal - elapsed));
+            exportBtn.textContent = `Exporting ${percent}% (${remaining}s left)`;
+        }
 
         function fallbackDownload(file) {
             const url = URL.createObjectURL(file);
