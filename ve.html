@@ -207,6 +207,12 @@
             cursor: not-allowed;
         }
 
+        .action-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: #ffffff;
+        }
+
         .main-display {
             width: calc(100% - 510px);
             flex-grow: 1;
@@ -478,7 +484,12 @@
     </div>
 
     <div class="right-sidebar">
-        <button class="action-btn" id="trimBtn" disabled>Trim</button>
+        <button class="action-btn" id="trimBtn" disabled>
+            <svg viewBox="0 0 24 24">
+                <path d="M19,3H15V5H19V3M19,7H15V9H19V7M19,11H15V13H19V11M5,3A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H13V19H5V5H13V3H5M19,15H15V17H19V15M19,19H15V21H19V19Z" />
+            </svg>
+            Trim
+        </button>
         <button class="action-btn" id="exportBtn" disabled>Export</button>
     </div>
 
@@ -562,14 +573,12 @@
         exportBtn.addEventListener('click', () => {
             if (timelineClips.length === 0) return;
 
-            // Берём первый видеоклип или файл для экспорта
             const clipToExport = timelineClips[0];
             if (!clipToExport) return;
 
             exportBtn.disabled = true;
             exportBtn.textContent = 'Exporting...';
 
-            // Если клип обрезан по времени, попытаемся сделать рендеринг через MediaRecorder, если это видео
             if (clipToExport.type.startsWith('video/') && (clipToExport.startTime > 0 || clipToExport.endTime < clipToExport.file.size)) {
                 const vid = document.createElement('video');
                 vid.src = clipToExport.url;
@@ -608,11 +617,9 @@
                     } catch (err) {
                         console.error(err);
                     }
-                    // Fallback, если captureStream не поддерживается
                     fallbackDownload(clipToExport.file);
                 });
             } else {
-                // Если без сложных обрезок — скачиваем файл напрямую
                 fallbackDownload(clipToExport.file);
             }
         });
