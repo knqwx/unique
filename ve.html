@@ -82,7 +82,7 @@
             padding: 15px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 10px;
         }
 
         .box {
@@ -180,7 +180,7 @@
             pointer-events: none;
         }
 
-        .trim-btn {
+        .action-btn {
             background-color: #3b4249;
             color: #ffffff;
             border: none;
@@ -198,11 +198,11 @@
             transition: background-color 0.2s;
         }
 
-        .trim-btn:hover:not(:disabled) {
+        .action-btn:hover:not(:disabled) {
             background-color: #485059;
         }
 
-        .trim-btn:disabled {
+        .action-btn:disabled {
             opacity: 0.4;
             cursor: not-allowed;
         }
@@ -321,23 +321,6 @@
             box-sizing: border-box;
         }
 
-        /* Sliding mode: horizontal scrolling */
-        .bottom-line-timeline.sliding-mode {
-            overflow-x: auto;
-            scrollbar-width: thin;
-            scrollbar-color: #485059 #33383d;
-        }
-        .bottom-line-timeline.sliding-mode::-webkit-scrollbar {
-            height: 4px;
-        }
-        .bottom-line-timeline.sliding-mode::-webkit-scrollbar-track {
-            background: #33383d;
-        }
-        .bottom-line-timeline.sliding-mode::-webkit-scrollbar-thumb {
-            background: #485059;
-            border-radius: 2px;
-        }
-
         .timeline-clip {
             position: relative;
             height: 100%;
@@ -349,7 +332,6 @@
             display: flex;
             align-items: center;
             transition: border-color 0.2s;
-            flex-shrink: 0;
         }
 
         .timeline-clip:hover {
@@ -404,7 +386,7 @@
             box-sizing: border-box;
         }
 
-        /* Settings Modal */
+        /* Modal window */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -462,35 +444,7 @@
             color: #8b949e;
             display: flex;
             flex-direction: column;
-            gap: 15px;
-        }
-
-        .setting-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .setting-label {
-            color: #ffffff;
-            font-weight: 500;
-        }
-
-        .setting-select {
-            width: 100%;
-            height: 38px;
-            background-color: #1a1d20;
-            border: 1px solid #3b4249;
-            color: #ffffff;
-            border-radius: 6px;
-            padding: 0 10px;
-            font-family: 'Rubik', sans-serif;
-            cursor: pointer;
-            outline: none;
-        }
-
-        .setting-select:focus {
-            border-color: #485059;
+            gap: 10px;
         }
     </style>
 </head>
@@ -524,7 +478,8 @@
     </div>
 
     <div class="right-sidebar">
-        <button class="trim-btn" id="trimBtn" disabled>&#9986; Trim</button>
+        <button class="action-btn" id="trimBtn" disabled>&#9986; Trim</button>
+        <button class="action-btn" id="exportBtn" disabled>&#128190; Export</button>
     </div>
 
     <div class="bottom-lines-box">
@@ -535,7 +490,7 @@
         <div class="bottom-line" id="timelineTrack2"></div>
     </div>
 
-    <!-- Settings Modal -->
+    <!-- Settings Modal Window -->
     <div class="modal-overlay" id="settingsModal">
         <div class="modal-window">
             <div class="modal-header">
@@ -543,13 +498,7 @@
                 <button class="modal-close-btn" id="closeModalBtn">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="setting-group">
-                    <span class="setting-label">Timeline Appearance</span>
-                    <select class="setting-select" id="timelineModeSelect">
-                        <option value="full">Full (Fit to screen)</option>
-                        <option value="sliding">Sliding / Long (Scrollable frames)</option>
-                    </select>
-                </div>
+                <p>Editor parameters and preferences will be located here.</p>
             </div>
         </div>
     </div>
@@ -560,6 +509,7 @@
         const timelineWrapper = document.getElementById('timelineWrapper');
         const timelinePlayhead = document.getElementById('timelinePlayhead');
         const trimBtn = document.getElementById('trimBtn');
+        const exportBtn = document.getElementById('exportBtn');
         const mediaContainer = document.getElementById('mediaContainer');
 
         const mainPlaceholder = document.getElementById('mainPlaceholder');
@@ -572,7 +522,6 @@
         const settingsBtn = document.getElementById('settingsBtn');
         const settingsModal = document.getElementById('settingsModal');
         const closeModalBtn = document.getElementById('closeModalBtn');
-        const timelineModeSelect = document.getElementById('timelineModeSelect');
 
         let hasItems = false;
         let gridWrapper = null;
@@ -581,8 +530,8 @@
         let isMouseDownOnTimeline = false;
         let globalCurrentTime = 0;
         let isProgrammaticSeek = false;
-        let timelineMode = 'full'; // 'full' or 'sliding'
 
+        // Settings modal logic
         settingsBtn.addEventListener('click', () => {
             settingsModal.classList.add('active');
         });
@@ -597,23 +546,31 @@
             }
         });
 
-        timelineModeSelect.addEventListener('change', (e) => {
-            timelineMode = e.target.value;
-            if (timelineMode === 'sliding') {
-                timelineWrapper.classList.add('sliding-mode');
+        function updateActionButtonsState() {
+            if (timelineClips.length > 0) {
+                exportBtn.disabled = false;
             } else {
-                timelineWrapper.classList.remove('sliding-mode');
+                exportBtn.disabled = true;
             }
-            renderTimeline();
-        });
 
-        function updateTrimButtonState() {
             if (activeClipObj && activeClipObj.type.startsWith('video/')) {
                 trimBtn.disabled = false;
             } else {
                 trimBtn.disabled = true;
             }
         }
+
+        exportBtn.addEventListener('click', () => {
+            if (timelineClips.length === 0) return;
+            exportBtn.disabled = true;
+            exportBtn.textContent = 'Exporting...';
+            
+            setTimeout(() => {
+                alert('Video exported successfully!');
+                exportBtn.textContent = '📁 Export';
+                updateActionButtonsState();
+            }, 1500);
+        });
 
         fileInput.addEventListener('change', function(event) {
             const files = event.target.files;
@@ -682,7 +639,7 @@
                         globalCurrentTime = 0;
                         renderTimeline();
                         loadClipToMain(fullClip, 0);
-                        updateTrimButtonState();
+                        updateActionButtonsState();
                     });
                 } else {
                     const fullClip = {
@@ -697,7 +654,7 @@
                     globalCurrentTime = 0;
                     renderTimeline();
                     loadClipToMain(fullClip, 0);
-                    updateTrimButtonState();
+                    updateActionButtonsState();
                 }
             });
 
@@ -712,78 +669,44 @@
 
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
 
-            if (timelineMode === 'sliding') {
-                timelineWrapper.style.width = '100%';
-                // Задаем масштаб: 1 секунда = 120 пикселей (высокая плотность кадров, высокая скорость движения)
-                const scaleFactor = 120; 
-                timelineClips.forEach(clip => {
-                    const clipEl = document.createElement('div');
-                    clipEl.className = 'timeline-clip';
-                    const clipDuration = clip.endTime - clip.startTime;
-                    clipEl.style.width = `${Math.max(100, clipDuration * scaleFactor)}px`;
+            timelineClips.forEach(clip => {
+                const clipEl = document.createElement('div');
+                clipEl.className = 'timeline-clip';
+                const clipDuration = clip.endTime - clip.startTime;
+                const widthPercent = totalDuration > 0 ? (clipDuration / totalDuration) * 100 : 100;
+                clipEl.style.width = `${widthPercent}%`;
 
+                if (activeClipObj === clip) {
+                    clipEl.classList.add('active-outline');
+                }
+
+                if (clip.type.startsWith('video/')) {
+                    const framesContainer = document.createElement('div');
+                    framesContainer.className = 'timeline-frames';
+                    clipEl.appendChild(framesContainer);
+
+                    generateFramesForClip(clip, framesContainer);
+                }
+
+                clipEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     if (activeClipObj === clip) {
-                        clipEl.classList.add('active-outline');
+                        deselectClip();
+                    } else {
+                        selectClip(clip);
                     }
-
-                    if (clip.type.startsWith('video/')) {
-                        const framesContainer = document.createElement('div');
-                        framesContainer.className = 'timeline-frames';
-                        clipEl.appendChild(framesContainer);
-                        // Высчитываем количество кадров пропорционально длительности, чтобы они не размывались
-                        const frameCount = Math.max(15, Math.floor(clipDuration * 8));
-                        generateFramesForClip(clip, framesContainer, frameCount);
-                    }
-
-                    clipEl.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        if (activeClipObj === clip) {
-                            deselectClip();
-                        } else {
-                            selectClip(clip);
-                        }
-                    });
-
-                    timelineWrapper.appendChild(clipEl);
                 });
-            } else {
-                timelineWrapper.style.width = '100%';
-                timelineClips.forEach(clip => {
-                    const clipEl = document.createElement('div');
-                    clipEl.className = 'timeline-clip';
-                    const clipDuration = clip.endTime - clip.startTime;
-                    const widthPercent = totalDuration > 0 ? (clipDuration / totalDuration) * 100 : 100;
-                    clipEl.style.width = `${widthPercent}%`;
 
-                    if (activeClipObj === clip) {
-                        clipEl.classList.add('active-outline');
-                    }
-
-                    if (clip.type.startsWith('video/')) {
-                        const framesContainer = document.createElement('div');
-                        framesContainer.className = 'timeline-frames';
-                        clipEl.appendChild(framesContainer);
-                        generateFramesForClip(clip, framesContainer, 20);
-                    }
-
-                    clipEl.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        if (activeClipObj === clip) {
-                            deselectClip();
-                        } else {
-                            selectClip(clip);
-                        }
-                    });
-
-                    timelineWrapper.appendChild(clipEl);
-                });
-            }
+                timelineWrapper.appendChild(clipEl);
+            });
 
             updatePlayheadPosition();
             updateTimeDisplay();
+            updateActionButtonsState();
         }
 
-        function generateFramesForClip(clip, framesContainer, frameCount) {
+        function generateFramesForClip(clip, framesContainer) {
+            const frameCount = 20; 
             const duration = clip.endTime - clip.startTime;
             const interval = duration / frameCount;
             
@@ -851,13 +774,13 @@
             }
 
             loadClipToMain(clip, targetLocalTime);
-            updateTrimButtonState();
+            updateActionButtonsState();
         }
 
         function deselectClip() {
             activeClipObj = null;
             document.querySelectorAll('.timeline-clip').forEach(el => el.classList.remove('active-outline'));
-            updateTrimButtonState();
+            updateActionButtonsState();
         }
 
         mediaContainer.addEventListener('click', () => {
@@ -946,7 +869,7 @@
                         mainVideo.currentTime = nextClip.startTime;
                         mainVideo.play();
                     }
-                    updateTrimButtonState();
+                    updateActionButtonsState();
                 } else {
                     mainVideo.pause();
                     mainVideo.currentTime = activeClipObj.endTime;
@@ -1000,18 +923,8 @@
         function updatePlayheadPosition() {
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
             if (totalDuration > 0) {
-                if (timelineMode === 'sliding') {
-                    const scaleFactor = 120;
-                    const totalWidth = totalDuration * scaleFactor;
-                    const percent = totalWidth > 0 ? (globalCurrentTime * scaleFactor / totalWidth) * 100 : 0;
-                    timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
-
-                    const scrollLeft = (globalCurrentTime * scaleFactor) - timelineWrapper.clientWidth / 2;
-                    timelineWrapper.scrollTo({ left: scrollLeft, behavior: 'smooth' });
-                } else {
-                    const percent = (globalCurrentTime / totalDuration) * 100;
-                    timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
-                }
+                const percent = (globalCurrentTime / totalDuration) * 100;
+                timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
             } else {
                 timelinePlayhead.style.left = '0%';
             }
@@ -1054,18 +967,9 @@
         function handleTimelineInteraction(e) {
             if (timelineClips.length === 0) return;
             const rect = timelineWrapper.getBoundingClientRect();
+            const clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
-            
-            let clickPosition;
-            if (timelineMode === 'sliding') {
-                const scaleFactor = 120;
-                const totalWidth = totalDuration * scaleFactor;
-                const offsetX = (e.clientX - rect.left) + timelineWrapper.scrollLeft;
-                clickPosition = Math.max(0, Math.min(1, offsetX / totalWidth));
-            } else {
-                clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-            }
-            
             globalCurrentTime = clickPosition * totalDuration;
 
             let accumulatedTime = 0;
@@ -1100,7 +1004,7 @@
                         mainVideo.src = targetClip.url;
                     }
                     mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
-                    updateTrimButtonState();
+                    updateActionButtonsState();
                 } else {
                     mainVideo.currentTime = targetClip.startTime + clipLocalOffset;
                 }
