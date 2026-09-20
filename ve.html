@@ -478,8 +478,8 @@
     </div>
 
     <div class="right-sidebar">
-        <button class="action-btn" id="trimBtn" disabled>&#9986; Trim</button>
-        <button class="action-btn" id="exportBtn" disabled>&#128190; Export</button>
+        <button class="action-btn" id="trimBtn" disabled>Trim</button>
+        <button class="action-btn" id="exportBtn" disabled>Export</button>
     </div>
 
     <div class="bottom-lines-box">
@@ -531,7 +531,6 @@
         let globalCurrentTime = 0;
         let isProgrammaticSeek = false;
 
-        // Settings modal logic
         settingsBtn.addEventListener('click', () => {
             settingsModal.classList.add('active');
         });
@@ -562,15 +561,86 @@
 
         exportBtn.addEventListener('click', () => {
             if (timelineClips.length === 0) return;
+
+            // Берём первый видеоклип или файл для экспорта
+            const clipToExport = timelineClips[0];
+            if (!clipToExport) return;
+
             exportBtn.disabled = true;
             exportBtn.textContent = 'Exporting...';
-            
-            setTimeout(() => {
-                alert('Video exported successfully!');
-                exportBtn.textContent = '📁 Export';
-                updateActionButtonsState();
-            }, 1500);
+
+            // Если клип обрезан по времени, попытаемся сделать рендеринг через MediaRecorder, если это видео
+            if (clipToExport.type.startsWith('video/') && (clipToExport.startTime > 0 || clipToExport.endTime < clipToExport.file.size)) {
+                const vid = document.createElement('video');
+                vid.src = clipToExport.url;
+                vid.muted = true;
+                vid.playsInline = true;
+
+                vid.addEventListener('loadedmetadata', () => {
+                    vid.currentTime = clipToExport.startTime;
+                });
+
+                vid.addEventListener('seeked', () => {
+                    try {
+                        const stream = vid.captureStream ? vid.captureStream() : (vid.mozCaptureStream ? vid.mozCaptureStream() : null);
+                        if (stream && window.MediaRecorder) {
+                            const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                            const chunks = [];
+
+                            recorder.ondataavailable = e => chunks.push(e.data);
+                            recorder.onstop = () => {
+                                const blob = new Blob(chunks, { type: 'video/webm' });
+                                triggerDownload(blob, 'exported_video.webm');
+                                exportBtn.textContent = 'Export';
+                                updateActionButtonsState();
+                            };
+
+                            recorder.start();
+                            vid.play();
+
+                            const duration = (clipToExport.endTime - clipToExport.startTime) * 1000;
+                            setTimeout(() => {
+                                vid.pause();
+                                recorder.stop();
+                            }, duration);
+                            return;
+                        }
+                    } catch (err) {
+                        console.error(err);
+                    }
+                    // Fallback, если captureStream не поддерживается
+                    fallbackDownload(clipToExport.file);
+                });
+            } else {
+                // Если без сложных обрезок — скачиваем файл напрямую
+                fallbackDownload(clipToExport.file);
+            }
         });
+
+        function fallbackDownload(file) {
+            const url = URL.createObjectURL(file);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file.name || 'export_media';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            exportBtn.textContent = 'Export';
+            updateActionButtonsState();
+        }
+
+        function triggerDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
 
         fileInput.addEventListener('change', function(event) {
             const files = event.target.files;
