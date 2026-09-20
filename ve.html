@@ -321,7 +321,7 @@
             box-sizing: border-box;
         }
 
-        /* Режим Sliding: таймлайн фиксированной длины с прокруткой */
+        /* Sliding mode: horizontal scrolling */
         .bottom-line-timeline.sliding-mode {
             overflow-x: auto;
             scrollbar-width: thin;
@@ -583,7 +583,6 @@
         let isProgrammaticSeek = false;
         let timelineMode = 'full'; // 'full' or 'sliding'
 
-        // Settings Modal Logic
         settingsBtn.addEventListener('click', () => {
             settingsModal.classList.add('active');
         });
@@ -715,8 +714,8 @@
 
             if (timelineMode === 'sliding') {
                 timelineWrapper.style.width = '100%';
-                // В sliding режиме каждый секунда или пиксель имеет фиксированный масштаб (например, 1 секунда = 60 пикселей)
-                const scaleFactor = 60; 
+                // Задаем масштаб: 1 секунда = 120 пикселей (высокая плотность кадров, высокая скорость движения)
+                const scaleFactor = 120; 
                 timelineClips.forEach(clip => {
                     const clipEl = document.createElement('div');
                     clipEl.className = 'timeline-clip';
@@ -731,7 +730,9 @@
                         const framesContainer = document.createElement('div');
                         framesContainer.className = 'timeline-frames';
                         clipEl.appendChild(framesContainer);
-                        generateFramesForClip(clip, framesContainer);
+                        // Высчитываем количество кадров пропорционально длительности, чтобы они не размывались
+                        const frameCount = Math.max(15, Math.floor(clipDuration * 8));
+                        generateFramesForClip(clip, framesContainer, frameCount);
                     }
 
                     clipEl.addEventListener('click', (e) => {
@@ -746,7 +747,6 @@
                     timelineWrapper.appendChild(clipEl);
                 });
             } else {
-                // Full mode: подстраивается под ширину контейнера
                 timelineWrapper.style.width = '100%';
                 timelineClips.forEach(clip => {
                     const clipEl = document.createElement('div');
@@ -763,7 +763,7 @@
                         const framesContainer = document.createElement('div');
                         framesContainer.className = 'timeline-frames';
                         clipEl.appendChild(framesContainer);
-                        generateFramesForClip(clip, framesContainer);
+                        generateFramesForClip(clip, framesContainer, 20);
                     }
 
                     clipEl.addEventListener('click', (e) => {
@@ -783,8 +783,7 @@
             updateTimeDisplay();
         }
 
-        function generateFramesForClip(clip, framesContainer) {
-            const frameCount = 20; 
+        function generateFramesForClip(clip, framesContainer, frameCount) {
             const duration = clip.endTime - clip.startTime;
             const interval = duration / frameCount;
             
@@ -1001,13 +1000,17 @@
         function updatePlayheadPosition() {
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
             if (totalDuration > 0) {
-                const percent = (globalCurrentTime / totalDuration) * 100;
-                timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
-
-                // Автопрокрутка в режиме sliding, если ползунок выходит за пределы видимости
                 if (timelineMode === 'sliding') {
-                    const scrollLeft = (globalCurrentTime / totalDuration) * timelineWrapper.scrollWidth - timelineWrapper.clientWidth / 2;
+                    const scaleFactor = 120;
+                    const totalWidth = totalDuration * scaleFactor;
+                    const percent = totalWidth > 0 ? (globalCurrentTime * scaleFactor / totalWidth) * 100 : 0;
+                    timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
+
+                    const scrollLeft = (globalCurrentTime * scaleFactor) - timelineWrapper.clientWidth / 2;
                     timelineWrapper.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+                } else {
+                    const percent = (globalCurrentTime / totalDuration) * 100;
+                    timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
                 }
             } else {
                 timelinePlayhead.style.left = '0%';
@@ -1051,16 +1054,18 @@
         function handleTimelineInteraction(e) {
             if (timelineClips.length === 0) return;
             const rect = timelineWrapper.getBoundingClientRect();
+            const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
             
             let clickPosition;
             if (timelineMode === 'sliding') {
+                const scaleFactor = 120;
+                const totalWidth = totalDuration * scaleFactor;
                 const offsetX = (e.clientX - rect.left) + timelineWrapper.scrollLeft;
-                clickPosition = Math.max(0, Math.min(1, offsetX / timelineWrapper.scrollWidth));
+                clickPosition = Math.max(0, Math.min(1, offsetX / totalWidth));
             } else {
                 clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             }
             
-            const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
             globalCurrentTime = clickPosition * totalDuration;
 
             let accumulatedTime = 0;
