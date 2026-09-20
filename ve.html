@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -321,6 +321,23 @@
             box-sizing: border-box;
         }
 
+        /* Режим Sliding: таймлайн фиксированной длины с прокруткой */
+        .bottom-line-timeline.sliding-mode {
+            overflow-x: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #485059 #33383d;
+        }
+        .bottom-line-timeline.sliding-mode::-webkit-scrollbar {
+            height: 4px;
+        }
+        .bottom-line-timeline.sliding-mode::-webkit-scrollbar-track {
+            background: #33383d;
+        }
+        .bottom-line-timeline.sliding-mode::-webkit-scrollbar-thumb {
+            background: #485059;
+            border-radius: 2px;
+        }
+
         .timeline-clip {
             position: relative;
             height: 100%;
@@ -332,6 +349,7 @@
             display: flex;
             align-items: center;
             transition: border-color 0.2s;
+            flex-shrink: 0;
         }
 
         .timeline-clip:hover {
@@ -386,7 +404,7 @@
             box-sizing: border-box;
         }
 
-        /* Модальное окно настроек */
+        /* Settings Modal */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -444,7 +462,35 @@
             color: #8b949e;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 15px;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .setting-label {
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        .setting-select {
+            width: 100%;
+            height: 38px;
+            background-color: #1a1d20;
+            border: 1px solid #3b4249;
+            color: #ffffff;
+            border-radius: 6px;
+            padding: 0 10px;
+            font-family: 'Rubik', sans-serif;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .setting-select:focus {
+            border-color: #485059;
         }
     </style>
 </head>
@@ -458,7 +504,7 @@
                 <span class="placeholder-text">Preview</span>
             </div>
         </div>
-        <button class="settings-icon-btn" id="settingsBtn" title="Настройки">
+        <button class="settings-icon-btn" id="settingsBtn" title="Settings">
             <svg viewBox="0 0 24 24">
                 <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 c-0.11,0.2-0.06,0.47,0.12,0.61l2.03,1.58c-0.05,0.3-0.07,0.62-0.07,0.94s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
             </svg>
@@ -489,15 +535,21 @@
         <div class="bottom-line" id="timelineTrack2"></div>
     </div>
 
-    <!-- Модальное окно настроек -->
+    <!-- Settings Modal -->
     <div class="modal-overlay" id="settingsModal">
         <div class="modal-window">
             <div class="modal-header">
-                <span>Настройки</span>
+                <span>Settings</span>
                 <button class="modal-close-btn" id="closeModalBtn">&times;</button>
             </div>
             <div class="modal-body">
-                <p>Здесь будут находиться параметры и настройки редактора.</p>
+                <div class="setting-group">
+                    <span class="setting-label">Timeline Appearance</span>
+                    <select class="setting-select" id="timelineModeSelect">
+                        <option value="full">Full (Fit to screen)</option>
+                        <option value="sliding">Sliding / Long (Scrollable frames)</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>
@@ -520,6 +572,7 @@
         const settingsBtn = document.getElementById('settingsBtn');
         const settingsModal = document.getElementById('settingsModal');
         const closeModalBtn = document.getElementById('closeModalBtn');
+        const timelineModeSelect = document.getElementById('timelineModeSelect');
 
         let hasItems = false;
         let gridWrapper = null;
@@ -528,8 +581,9 @@
         let isMouseDownOnTimeline = false;
         let globalCurrentTime = 0;
         let isProgrammaticSeek = false;
+        let timelineMode = 'full'; // 'full' or 'sliding'
 
-        // Логика модального окна настроек
+        // Settings Modal Logic
         settingsBtn.addEventListener('click', () => {
             settingsModal.classList.add('active');
         });
@@ -542,6 +596,16 @@
             if (e.target === settingsModal) {
                 settingsModal.classList.remove('active');
             }
+        });
+
+        timelineModeSelect.addEventListener('change', (e) => {
+            timelineMode = e.target.value;
+            if (timelineMode === 'sliding') {
+                timelineWrapper.classList.add('sliding-mode');
+            } else {
+                timelineWrapper.classList.remove('sliding-mode');
+            }
+            renderTimeline();
         });
 
         function updateTrimButtonState() {
@@ -649,36 +713,71 @@
 
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
 
-            timelineClips.forEach(clip => {
-                const clipEl = document.createElement('div');
-                clipEl.className = 'timeline-clip';
-                const clipDuration = clip.endTime - clip.startTime;
-                const widthPercent = totalDuration > 0 ? (clipDuration / totalDuration) * 100 : 100;
-                clipEl.style.width = `${widthPercent}%`;
+            if (timelineMode === 'sliding') {
+                timelineWrapper.style.width = '100%';
+                // В sliding режиме каждый секунда или пиксель имеет фиксированный масштаб (например, 1 секунда = 60 пикселей)
+                const scaleFactor = 60; 
+                timelineClips.forEach(clip => {
+                    const clipEl = document.createElement('div');
+                    clipEl.className = 'timeline-clip';
+                    const clipDuration = clip.endTime - clip.startTime;
+                    clipEl.style.width = `${Math.max(100, clipDuration * scaleFactor)}px`;
 
-                if (activeClipObj === clip) {
-                    clipEl.classList.add('active-outline');
-                }
-
-                if (clip.type.startsWith('video/')) {
-                    const framesContainer = document.createElement('div');
-                    framesContainer.className = 'timeline-frames';
-                    clipEl.appendChild(framesContainer);
-
-                    generateFramesForClip(clip, framesContainer);
-                }
-
-                clipEl.addEventListener('click', (e) => {
-                    e.stopPropagation();
                     if (activeClipObj === clip) {
-                        deselectClip();
-                    } else {
-                        selectClip(clip);
+                        clipEl.classList.add('active-outline');
                     }
-                });
 
-                timelineWrapper.appendChild(clipEl);
-            });
+                    if (clip.type.startsWith('video/')) {
+                        const framesContainer = document.createElement('div');
+                        framesContainer.className = 'timeline-frames';
+                        clipEl.appendChild(framesContainer);
+                        generateFramesForClip(clip, framesContainer);
+                    }
+
+                    clipEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (activeClipObj === clip) {
+                            deselectClip();
+                        } else {
+                            selectClip(clip);
+                        }
+                    });
+
+                    timelineWrapper.appendChild(clipEl);
+                });
+            } else {
+                // Full mode: подстраивается под ширину контейнера
+                timelineWrapper.style.width = '100%';
+                timelineClips.forEach(clip => {
+                    const clipEl = document.createElement('div');
+                    clipEl.className = 'timeline-clip';
+                    const clipDuration = clip.endTime - clip.startTime;
+                    const widthPercent = totalDuration > 0 ? (clipDuration / totalDuration) * 100 : 100;
+                    clipEl.style.width = `${widthPercent}%`;
+
+                    if (activeClipObj === clip) {
+                        clipEl.classList.add('active-outline');
+                    }
+
+                    if (clip.type.startsWith('video/')) {
+                        const framesContainer = document.createElement('div');
+                        framesContainer.className = 'timeline-frames';
+                        clipEl.appendChild(framesContainer);
+                        generateFramesForClip(clip, framesContainer);
+                    }
+
+                    clipEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (activeClipObj === clip) {
+                            deselectClip();
+                        } else {
+                            selectClip(clip);
+                        }
+                    });
+
+                    timelineWrapper.appendChild(clipEl);
+                });
+            }
 
             updatePlayheadPosition();
             updateTimeDisplay();
@@ -904,6 +1003,12 @@
             if (totalDuration > 0) {
                 const percent = (globalCurrentTime / totalDuration) * 100;
                 timelinePlayhead.style.left = `${Math.max(0, Math.min(100, percent))}%`;
+
+                // Автопрокрутка в режиме sliding, если ползунок выходит за пределы видимости
+                if (timelineMode === 'sliding') {
+                    const scrollLeft = (globalCurrentTime / totalDuration) * timelineWrapper.scrollWidth - timelineWrapper.clientWidth / 2;
+                    timelineWrapper.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+                }
             } else {
                 timelinePlayhead.style.left = '0%';
             }
@@ -946,7 +1051,14 @@
         function handleTimelineInteraction(e) {
             if (timelineClips.length === 0) return;
             const rect = timelineWrapper.getBoundingClientRect();
-            const clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            
+            let clickPosition;
+            if (timelineMode === 'sliding') {
+                const offsetX = (e.clientX - rect.left) + timelineWrapper.scrollLeft;
+                clickPosition = Math.max(0, Math.min(1, offsetX / timelineWrapper.scrollWidth));
+            } else {
+                clickPosition = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            }
             
             const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
             globalCurrentTime = clickPosition * totalDuration;
