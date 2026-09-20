@@ -570,57 +570,150 @@
             }
         }
 
-        exportBtn.addEventListener('click', () => {
+        // Обновленная архитектура офлайн-экспорта (Frame-by-frame Offline Pipeline)
+        exportBtn.addEventListener('click', async () => {
             if (timelineClips.length === 0) return;
-
-            const clipToExport = timelineClips[0];
-            if (!clipToExport) return;
 
             exportBtn.disabled = true;
             exportBtn.textContent = 'Exporting...';
 
-            if (clipToExport.type.startsWith('video/') && (clipToExport.startTime > 0 || clipToExport.endTime < clipToExport.file.size)) {
-                const vid = document.createElement('video');
-                vid.src = clipToExport.url;
-                vid.muted = true;
-                vid.playsInline = true;
+            try {
+                const fps = 30;
+                const totalDuration = timelineClips.reduce((sum, clip) => sum + (clip.endTime - clip.startTime), 0);
+                const totalFrames = Math.round(totalDuration * fps);
 
-                vid.addEventListener('loadedmetadata', () => {
-                    vid.currentTime = clipToExport.startTime;
-                });
+                const width = 1280;
+                const height = 720;
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = width;
+                exportCanvas.height = height;
+                const ctx = exportCanvas.getContext('2d');
 
-                vid.addEventListener('seeked', () => {
-                    try {
-                        const stream = vid.captureStream ? vid.captureStream() : (vid.mozCaptureStream ? vid.mozCaptureStream() : null);
-                        if (stream && window.MediaRecorder) {
-                            const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-                            const chunks = [];
+                let videoEncoder = null;
+                let encodedChunks = [];
 
-                            recorder.ondataavailable = e => chunks.push(e.data);
-                            recorder.onstop = () => {
-                                const blob = new Blob(chunks, { type: 'video/webm' });
-                                triggerDownload(blob, 'exported_video.webm');
-                                exportBtn.textContent = 'Export';
-                                updateActionButtonsState();
-                            };
+                const hiddenVideo = document.createElement('video');
+                hiddenVideo.muted = true;
+                hiddenVideo.playsInline = true;
 
-                            recorder.start();
-                            vid.play();
+                const seekVideoTo = (vid, time) => {
+                    return new Promise((resolve) => {
+                        let onSeeked = () => {
+                            vid.removeEventListener('seeked', onSeeked);
+                            resolve();
+                        };
+                        vid.addEventListener('seeked', onSeeked);
+                        vid.currentTime = time;
+                    });
+                };
 
-                            const duration = (clipToExport.endTime - clipToExport.startTime) * 1000;
-                            setTimeout(() => {
-                                vid.pause();
-                                recorder.stop();
-                            }, duration);
-                            return;
+                const useWebCodecs = typeof VideoEncoder !== 'undefined';
+                
+                if (useWebCodecs) {
+                    videoEncoder = new VideoEncoder({
+                        output: (chunk, metadata) => {
+                            const chunkData = new Uint8Array(chunk.byteLength);
+                            chunk.copyTo(chunkData);
+                            encodedChunks.push(chunkData);
+                        },
+                        error: (err) => console.error('VideoEncoder error:', err)
+                    });
+
+                    videoEncoder.configure({
+                        codec: 'vp09.00.10.08',
+                        width: width,
+                        height: height,
+                        bitrate: 2 * 1024 * 1024,
+                        framerate: fps
+                    });
+                }
+
+                let streamCaptureMode = !useWebCodecs;
+                let stream, recorder, recordedChunks = [];
+
+                if (streamCaptureMode && window.MediaRecorder) {
+                    stream = exportCanvas.captureStream(fps);
+                    recorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+                    recorder.ondataavailable = e => recordedChunks.push(e.data);
+                    recorder.start();
+                }
+
+                for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
+                    const currentTime = frameIndex / fps;
+
+                    let accumulated = 0;
+                    let targetClip = null;
+                    let clipLocalTime = 0;
+
+                    for (let clip of timelineClips) {
+                        const dur = clip.endTime - clip.startTime;
+                        if (currentTime >= accumulated && currentTime <= accumulated + dur) {
+                            targetClip = clip;
+                            clipLocalTime = clip.startTime + (currentTime - accumulated);
+                            break;
                         }
-                    } catch (err) {
-                        console.error(err);
+                        accumulated += dur;
                     }
-                    fallbackDownload(clipToExport.file);
-                });
-            } else {
-                fallbackDownload(clipToExport.file);
+
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, width, height);
+
+                    if (targetClip) {
+                        if (targetClip.type.startsWith('image/')) {
+                            await new Promise((resolve) => {
+                                const img = new Image();
+                                img.src = targetClip.url;
+                                img.onload = () => {
+                                    ctx.drawImage(img, 0, 0, width, height);
+                                    resolve();
+                                };
+                                img.onerror = resolve;
+                            });
+                        } else if (targetClip.type.startsWith('video/')) {
+                            if (hiddenVideo.src !== targetClip.url) {
+                                hiddenVideo.src = targetClip.url;
+                                await new Promise(r => hiddenVideo.addEventListener('loadeddata', r, {once: true}));
+                            }
+                            await seekVideoTo(hiddenVideo, clipLocalTime);
+                            ctx.drawImage(hiddenVideo, 0, 0, width, height);
+                        }
+                    }
+
+                    if (useWebCodecs && videoEncoder && videoEncoder.state === 'configured') {
+                        const frame = new VideoFrame(exportCanvas, { timestamp: Math.round(frameIndex * (1000000 / fps)) });
+                        videoEncoder.encode(frame, { keyFrame: frameIndex % (fps * 2) === 0 });
+                        frame.close();
+                    } else if (!streamCaptureMode) {
+                        if (frameIndex % 10 === 0) {
+                            await new Promise(r => setTimeout(r, 4));
+                        }
+                    }
+                }
+
+                if (useWebCodecs && videoEncoder) {
+                    await videoEncoder.flush();
+                    videoEncoder.close();
+                    const finalBlob = new Blob(encodedChunks, { type: 'video/webm' });
+                    triggerDownload(finalBlob, 'exported_video.webm');
+                } else if (streamCaptureMode && recorder) {
+                    await new Promise((resolve) => {
+                        recorder.onstop = () => {
+                            const finalBlob = new Blob(recordedChunks, { type: 'video/webm' });
+                            triggerDownload(finalBlob, 'exported_video.webm');
+                            resolve();
+                        };
+                        recorder.stop();
+                    });
+                } else {
+                    fallbackDownload(timelineClips[0].file);
+                }
+
+            } catch (err) {
+                console.error('Export failed:', err);
+                fallbackDownload(timelineClips[0].file);
+            } finally {
+                exportBtn.textContent = 'Export';
+                updateActionButtonsState();
             }
         });
 
